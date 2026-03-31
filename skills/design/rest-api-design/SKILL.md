@@ -32,9 +32,12 @@ Apply these conventions when designing or implementing REST API endpoints.
 | 201 Created | Resource created (POST) |
 | 204 No Content | Successful delete |
 | 400 Bad Request | Validation error, invalid input |
+| 401 Unauthorized | Missing or invalid authentication |
+| 403 Forbidden | Authenticated but insufficient permissions |
 | 404 Not Found | Resource not found |
 | 406 Not Acceptable | Unsupported Accept header |
 | 409 Conflict | Business conflict, duplicate, constraint violation |
+| 429 Too Many Requests | Rate limit exceeded |
 
 ## Content Negotiation
 

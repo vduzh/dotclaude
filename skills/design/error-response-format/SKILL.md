@@ -32,6 +32,7 @@ Apply this format for all error responses in REST APIs.
 | `NOT_FOUND` | 404 | Resource not found |
 | `CONFLICT` | 409 | Business conflict or DB constraint violation |
 | `FORBIDDEN` | 403 | Access denied |
+| `TOO_MANY_REQUESTS` | 429 | Rate limit exceeded or account temporarily locked |
 | `INTERNAL_ERROR` | 500 | Unexpected server error |
 
 ## Validation Error (400)
@@ -101,6 +102,8 @@ Rules:
 | Business input error (FK not found, etc.) | 400 | `BAD_REQUEST` |
 | Resource not found | 404 | `NOT_FOUND` |
 | Access denied | 403 | `FORBIDDEN` |
+| Rate limit exceeded | 429 | `TOO_MANY_REQUESTS` |
+| Account temporarily locked | 429 | `ACCOUNT_TEMPORARILY_LOCKED` |
 | Business conflict ("already exists") | 409 | `CONFLICT` |
 | DB constraint violation | 409 | `CONFLICT` |
 | Unexpected server error | 500 | `INTERNAL_ERROR` |
