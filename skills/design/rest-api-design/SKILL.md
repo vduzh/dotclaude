@@ -38,17 +38,22 @@ Apply these conventions when designing or implementing REST API endpoints.
 
 ## Content Negotiation
 
-Support multiple representations of the same collection via `Accept` header. The **list view is the default** — it serves both `application/json` (for Swagger, generic clients) and the vendor media type. Specialized views (lookup, etc.) require an explicit vendor `Accept` header.
+Support multiple representations of the same collection via `Accept` header:
 
-```java
-// List view — default representation (serves application/json AND vendor type)
-@GetMapping(produces = {"application/json", "application/vnd.api.profile.list+json"})
+```
+# List view — default representation
+GET /api/v1/profiles
+Accept: application/json
+Accept: application/vnd.api.profile.list+json
 
-// Lookup view — requires explicit Accept header
-@GetMapping(produces = "application/vnd.api.profile.lookup+json")
+# Lookup view — requires explicit Accept header
+GET /api/v1/profiles
+Accept: application/vnd.api.profile.lookup+json
 ```
 
-Spring automatically routes requests based on `Accept` header — no manual parsing needed.
+The **list view is the default** — it serves both `application/json` (for Swagger, generic clients) and the vendor media type. Specialized views (lookup, etc.) require an explicit vendor `Accept` header.
+
+The framework routes requests based on `Accept` header automatically — no manual parsing needed.
 
 ## Query vs Path Parameters
 
@@ -58,8 +63,37 @@ Spring automatically routes requests based on `Accept` header — no manual pars
 
 ## Update Operations
 
-- **PUT**: Full replacement — all fields required in DTO. Null fields overwrite existing values.
-- **PATCH**: Partial update — null fields are ignored, only provided fields are updated.
+### PUT — Full Replacement
+
+All fields required. Null fields overwrite existing values.
+
+```
+PUT /api/v1/profiles/550e8400-...
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john@example.com"
+}
+```
+
+Response: `200 OK` with updated resource.
+
+### PATCH — Partial Update
+
+Only provided fields are updated. Null/missing fields are ignored.
+
+```
+PATCH /api/v1/profiles/550e8400-...
+Content-Type: application/json
+
+{
+  "lastName": "Smith"
+}
+```
+
+Response: `200 OK` with updated resource.
 
 ## Delete Operations (Idempotent)
 
@@ -67,31 +101,15 @@ DELETE must be **idempotent** per RFC 7231:
 - If resource exists → delete it, return **204 No Content**
 - If resource does NOT exist → just return **204 No Content** (no 404 error)
 
+```
+DELETE /api/v1/profiles/550e8400-...
+
+→ 204 No Content  (whether resource existed or not)
+```
+
 Benefits:
 - Complies with HTTP specification
 - Simplifies client code (no need to handle 404 as a special case)
 - Parallel requests (double-click) both return success
 
-```java
-public void deleteXxx(UUID id) {
-    repository.findById(id).ifPresent(entity -> {
-        repository.delete(entity);
-        log.info("Deleted xxx with ID: {}", id);
-    });
-}
-```
-
-With business rules:
-```java
-public void deletePaymentMethod(UUID coachId, UUID paymentMethodId) {
-    paymentMethodRepository.findByIdAndCoachId(paymentMethodId, coachId)
-        .ifPresent(paymentMethod -> {
-            if (subscriptionRepository.existsByPaymentMethodId(paymentMethodId)) {
-                throw new IllegalStateException("Cannot delete: assigned to subscriptions");
-            }
-            paymentMethodRepository.delete(paymentMethod);
-        });
-}
-```
-
-> Business checks (cannot delete resource in use) are only performed if the resource is found.
+**With business rules:** If the resource is found and cannot be deleted (e.g., in use by other resources), return `409 Conflict` with an explanation. Business checks are only performed if the resource is found — if not found, return 204 silently.

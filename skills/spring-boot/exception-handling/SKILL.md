@@ -1,6 +1,6 @@
 ---
 name: exception-handling
-description: Exception handling strategy — dedicated exception classes, Exception vs Optional, @ControllerAdvice, never use standard Java exceptions for HTTP mapping
+description: Exception handling in Spring Boot — dedicated exceptions, GlobalExceptionHandler with @ControllerAdvice, ErrorDto, Exception vs Optional pattern
 ---
 
 # Exception Handling
@@ -25,15 +25,87 @@ public class BadRequestException extends RuntimeException {
 }
 ```
 
-| Exception | HTTP Status | Use Case |
-|-----------|-------------|----------|
-| `ResourceNotFoundException` | 404 | Resource not found by ID |
-| `BadRequestException` | 400 | Invalid business input (FK validation, etc.) |
-| `ConflictException` | 409 | Business conflict ("already exists") |
-| `DataIntegrityViolationException` | 409 | DB constraint violation |
-| `MethodArgumentNotValidException` | 400 | Bean Validation failures |
-| `MethodArgumentTypeMismatchException` | 400 | Invalid path variable (bad UUID, etc.) |
-| `AccessDeniedException` | 403 | Insufficient permissions |
+## ErrorDto
+
+```java
+@Data
+@Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(name = "Error")
+public class ErrorDto {
+    private String code;
+    private String message;
+    private Map<String, String> details;  // only for validation errors
+}
+```
+
+## GlobalExceptionHandler
+
+```java
+@RestControllerAdvice
+@Slf4j
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDto handleValidation(MethodArgumentNotValidException ex) {
+        Map<String, String> details = new LinkedHashMap<>();
+        ex.getBindingResult().getAllErrors().forEach(error -> {
+            String field = error instanceof FieldError fe ? fe.getField() : error.getObjectName();
+            details.putIfAbsent(field, error.getDefaultMessage());
+        });
+        return ErrorDto.builder()
+            .code("VALIDATION_ERROR")
+            .message("Request validation failed")
+            .details(details)
+            .build();
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorDto handleNotFound(ResourceNotFoundException ex) {
+        return ErrorDto.builder().code("NOT_FOUND").message(ex.getMessage()).build();
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDto handleConflict(ConflictException ex) {
+        return ErrorDto.builder().code("CONFLICT").message(ex.getMessage()).build();
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDto handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.error("Data integrity violation", ex);
+        return ErrorDto.builder().code("CONFLICT").message("Data integrity violation").build();
+    }
+
+    @ExceptionHandler(BadRequestException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDto handleBadRequest(BadRequestException ex) {
+        return ErrorDto.builder().code("BAD_REQUEST").message(ex.getMessage()).build();
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDto handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ErrorDto.builder().code("BAD_REQUEST").message("Invalid parameter: " + ex.getName()).build();
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorDto handleAccessDenied(AccessDeniedException ex) {
+        return ErrorDto.builder().code("FORBIDDEN").message("Access denied").build();
+    }
+
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ErrorDto handleGeneric(Exception ex) {
+        log.error("Unexpected error", ex);
+        return ErrorDto.builder().code("INTERNAL_ERROR").message("Internal server error").build();
+    }
+}
+```
 
 ## Service Layer: Exception vs Optional
 
@@ -72,6 +144,28 @@ protected <T> T getOrThrow(Optional<T> optional, String message) {
 }
 ```
 
-## GlobalExceptionHandler
+## Delete — Idempotent Pattern
 
-See the `error-response-format` skill for the complete `@ControllerAdvice` implementation and `ErrorDto` structure.
+```java
+public void deleteXxx(UUID id) {
+    repository.findById(id).ifPresent(entity -> {
+        repository.delete(entity);
+        log.info("Deleted xxx with ID: {}", id);
+    });
+}
+```
+
+With business rules:
+```java
+public void deletePaymentMethod(UUID coachId, UUID paymentMethodId) {
+    paymentMethodRepository.findByIdAndCoachId(paymentMethodId, coachId)
+        .ifPresent(paymentMethod -> {
+            if (subscriptionRepository.existsByPaymentMethodId(paymentMethodId)) {
+                throw new ConflictException("Cannot delete: assigned to subscriptions");
+            }
+            paymentMethodRepository.delete(paymentMethod);
+        });
+}
+```
+
+> Business checks are only performed if the resource is found.

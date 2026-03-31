@@ -1,11 +1,11 @@
 ---
 name: dto-conventions
-description: DTO naming and structure conventions — noun-first naming, separate DTOs per operation, validation, OpenAPI schemas, PII control
+description: DTO naming and structure conventions — noun-first naming, separate DTOs per operation, request/response JSON contracts
 ---
 
 # DTO Conventions
 
-Apply these conventions when creating or modifying DTOs.
+Apply these conventions when designing API request/response contracts.
 
 ## Noun-First Naming
 
@@ -18,67 +18,113 @@ Name DTOs as `{Entity}{Operation}` — noun first, NOT verb first:
 
 ## Separate DTOs Per Operation
 
-Each entity gets its own set of DTOs:
+Each entity gets its own set of request/response structures:
 
-| DTO | Purpose | Validation |
-|-----|---------|------------|
-| `XxxCreateDto` | POST body | All required fields validated |
-| `XxxUpdateDto` | PUT body | All fields required (full replacement) |
-| `XxxPatchDto` | PATCH body | All fields nullable, at least one required |
-| `XxxDto` | Response (single resource) | No validation needed |
-| `XxxListItemDto` | Response (list/table view) | No validation needed |
-| `XxxLookupDto` | Response (dropdown/select) | No validation needed |
-| `XxxSearchParams` | Query parameters for list endpoints | Pagination/sort validation |
+| DTO | HTTP | Purpose |
+|-----|------|---------|
+| `XxxCreate` | POST body | All required fields for creation |
+| `XxxUpdate` | PUT body | All fields required (full replacement) |
+| `XxxPatch` | PATCH body | All fields optional, at least one required |
+| `Xxx` | Response (single) | Full resource representation |
+| `XxxListItem` | Response (list) | Subset of fields for table/list view |
+| `XxxLookup` | Response (dropdown) | Minimal fields (id + display name) |
+| `XxxSearchParams` | Query params | Pagination, sorting, filters |
 
-## Validation
+## Request Examples
 
-All input DTOs must include Bean Validation annotations:
+### Create (POST)
 
-```java
-@Data
-@Builder
-@Schema(name = "CustomerCreate")
-public class CustomerCreateDto {
-    @NotBlank @Size(max = 255)
-    @Schema(description = "Customer name", example = "John Doe")
-    private String name;
-
-    @NotBlank @Email @Size(max = 255)
-    @Schema(description = "Email address", example = "john@example.com")
-    private String email;
+```json
+// POST /api/v1/customers
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john@example.com",
+  "phone": "+1234567890"
 }
 ```
 
-## OpenAPI Documentation
+All fields validated: required fields must be present, strings have max length, email format checked.
 
-- Use `@Schema(name = "Customer")` on DTO classes for clean API documentation names (strips the `Dto` suffix)
-- Use `@Schema(description = ..., example = ...)` on fields
+### Update (PUT)
 
-## PII Control in Logs
-
-Input/mutable DTOs (`Create`, `Update`, `Patch`) use `@ToString` whitelist to control PII in logs:
-
-```java
-@Data
-@Builder
-@ToString(onlyExplicitlyIncluded = true)  // whitelist approach
-public class CustomerCreateDto {
-    @ToString.Include
-    @NotBlank
-    private String name;       // ✅ safe — included in logs
-
-    @NotBlank @Email
-    private String email;      // 🔒 PII — excluded from logs
+```json
+// PUT /api/v1/customers/550e8400-...
+{
+  "firstName": "John",
+  "lastName": "Smith",
+  "email": "john.smith@example.com",
+  "phone": "+1234567890"
 }
 ```
 
-Output/display DTOs (`Dto`, `ListItem`, `Lookup`) contain only public data and use default `toString`.
+All fields required — this is a full replacement.
 
-## Lombok Annotations
+### Patch (PATCH)
 
-```java
-@Data @Builder              // for DTOs
-@Getter @Setter             // for entities (NOT @Data — avoids equals/hashCode issues with lazy loading)
-@NoArgsConstructor
-@AllArgsConstructor
+```json
+// PATCH /api/v1/customers/550e8400-...
+{
+  "lastName": "Smith"
+}
 ```
+
+Only provided fields are updated. Empty body or `{}` → `400 Bad Request` (at least one field required). Blank strings → `400 Bad Request` (field is either `null`/absent or a valid non-blank value).
+
+## Response Examples
+
+### Single Resource (Xxx)
+
+```json
+// GET /api/v1/customers/550e8400-...  →  200 OK
+{
+  "id": "550e8400-e29b-41d4-a716-446655440001",
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john@example.com",
+  "phone": "+1234567890",
+  "status": "active",
+  "createdAt": "2025-01-15T10:30:00Z"
+}
+```
+
+### List Item (XxxListItem)
+
+Subset of fields optimized for table display:
+
+```json
+{
+  "id": "550e8400-...",
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john@example.com",
+  "status": "active"
+}
+```
+
+### Lookup (XxxLookup)
+
+Minimal — for dropdown/select components:
+
+```json
+{
+  "id": "550e8400-...",
+  "name": "John Doe"
+}
+```
+
+## Validation Rules
+
+| Rule | When | Error |
+|------|------|-------|
+| Required field missing | Create, Update | `400` — "Field is required" |
+| String exceeds max length | Create, Update, Patch | `400` — "Max N characters" |
+| Invalid email format | Create, Update, Patch | `400` — "Invalid email" |
+| Empty patch body | Patch | `400` — "At least one field required" |
+| Blank string in patch | Patch | `400` — "Must not be blank" |
+
+## PII in Logs
+
+Input DTOs (Create, Update, Patch) should control which fields appear in logs. Sensitive fields (email, phone, address) must be excluded from `toString()` output. Only safe fields (name, status) should be logged.
+
+Output DTOs (Xxx, ListItem, Lookup) contain only public/display data — default `toString()` is fine.

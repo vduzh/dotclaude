@@ -1,132 +1,96 @@
 ---
 name: patch-operations
-description: PATCH endpoint design — Patchable interface, @NullOrNotBlank, @NotEmptyPatch validation, MapStruct @BeanMapping for partial updates
+description: PATCH endpoint design — partial update semantics, null vs absent fields, empty patch rejection, validation rules
 ---
 
 # PATCH Operations
 
-Apply these patterns when implementing PATCH (partial update) endpoints.
+Apply these patterns when designing PATCH (partial update) endpoints.
 
-## Patchable Interface
+## Semantics
 
-All Patch DTOs implement `Patchable` — a contract that allows validation and optimization:
+- Only provided (non-null) fields are updated
+- Absent/null fields are **ignored** (not set to null)
+- Empty body `{}` → `400 Bad Request` (at least one field must be provided)
+- Blank string `""` or `"   "` → `400 Bad Request` (field is either absent or a valid value)
 
-```java
-public interface Patchable {
-    boolean isEmpty();
+## Request Contract
+
+```
+PATCH /api/v1/profiles/550e8400-...
+Content-Type: application/json
+
+{
+  "lastName": "Smith"
 }
 ```
 
-## Patch DTO
+Response: `200 OK` with full updated resource.
 
-```java
-@Data
-@Builder
-@ToString(onlyExplicitlyIncluded = true)
-@NotEmptyPatch  // class-level: at least one field must be non-null
-@Schema(name = "ProfilePatch")
-public class ProfilePatchDto implements Patchable {
+## Validation Rules
 
-    @NullOrNotBlank @Size(max = 50)
-    @Schema(description = "First name")
-    private String firstName;
+### At least one field required
 
-    @NullOrNotBlank @Size(max = 50)
-    @Schema(description = "Last name")
-    private String lastName;
+An empty patch body must be rejected at the validation layer:
 
-    @Override
-    public boolean isEmpty() {
-        return firstName == null && lastName == null;
-    }
+```json
+// ❌ 400 Bad Request
+{}
+
+// ❌ 400 Bad Request
+{ "firstName": null, "lastName": null }
+
+// ✅ 200 OK
+{ "firstName": "John" }
+```
+
+Error response:
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Request validation failed",
+  "details": {
+    "profilePatch": "At least one field must be provided"
+  }
 }
 ```
 
-## Custom Validators
+### Null-or-not-blank rule
 
-### @NullOrNotBlank
+For string fields in PATCH, the value is either:
+- **`null` / absent** → field is not updated (valid)
+- **Non-blank string** → field is updated (valid)
+- **Blank / whitespace** → rejected with `400` (invalid)
 
-Allows `null` (field not provided) but rejects blank/whitespace strings. Standard `@NotBlank` would reject `null`, which is wrong for PATCH semantics.
+```json
+// ✅ Valid — field not updated
+{ "firstName": null }
 
-```java
-@Constraint(validatedBy = NullOrNotBlankValidator.class)
-@Target(ElementType.FIELD)
-@Retention(RetentionPolicy.RUNTIME)
-public @interface NullOrNotBlank {
-    String message() default "must not be blank";
-    // ...
-}
+// ✅ Valid — field updated
+{ "firstName": "John" }
 
-public class NullOrNotBlankValidator implements ConstraintValidator<NullOrNotBlank, String> {
-    @Override
-    public boolean isValid(String value, ConstraintValidatorContext ctx) {
-        return value == null || !value.trim().isEmpty();
-    }
-}
+// ❌ Invalid — blank string
+{ "firstName": "" }
+{ "firstName": "   " }
 ```
 
-### @NotEmptyPatch
+## Implementation Guidance
 
-Class-level annotation — validates that at least one field is non-null (rejects empty PATCH body):
+### Mapper behavior
 
-```java
-@Constraint(validatedBy = NotEmptyPatchValidator.class)
-@Target(ElementType.TYPE)
-@Retention(RetentionPolicy.RUNTIME)
-public @interface NotEmptyPatch {
-    String message() default "At least one field must be provided";
-    // ...
-}
+The mapper for PATCH must **skip null fields** — only map non-null values to the entity. This is different from PUT mapper, which overwrites all fields including nulls.
 
-public class NotEmptyPatchValidator implements ConstraintValidator<NotEmptyPatch, Patchable> {
-    @Override
-    public boolean isValid(Patchable value, ConstraintValidatorContext ctx) {
-        return value != null && !value.isEmpty();
-    }
-}
+```
+PUT  mapper: dto.firstName (even if null) → entity.firstName    // full replacement
+PATCH mapper: dto.firstName (only if non-null) → entity.firstName  // partial update
 ```
 
-## MapStruct: @BeanMapping for Patch Only
+**Critical:** Never set "skip nulls" behavior globally on the mapper — it would break PUT operations. Apply it only to the patch mapping method.
 
-**Critical:** Set `nullValuePropertyMappingStrategy = IGNORE` per-method via `@BeanMapping`, only on patch methods. Never at `@Mapper` level — otherwise PUT's `updateEntityFromDto` would silently skip null fields instead of overwriting them.
+### Service optimization
 
-```java
-@Mapper(componentModel = "spring")
-public interface ProfileMapper {
+Empty patches should be rejected at the validation layer (returns 400 automatically). As a defensive measure, the service can also skip the DB write if no fields are set.
 
-    // PUT — all fields overwrite (including nulls)
-    void updateEntityFromDto(ProfileUpdateDto dto, @MappingTarget ProfileEntity entity);
+### Delete vs PATCH
 
-    // PATCH — only non-null fields update
-    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    void patchEntityFromDto(ProfilePatchDto dto, @MappingTarget ProfileEntity entity);
-}
-```
-
-## Service Layer Optimization
-
-Empty patches are rejected at validation layer (`@NotEmptyPatch` + `@Valid` → 400 automatically). Service also skips DB write as a defensive layer:
-
-```java
-@Transactional
-public ProfileDto patch(UUID id, ProfilePatchDto dto) {
-    if (dto.isEmpty()) {
-        return findById(id);  // defensive: no DB write
-    }
-
-    ProfileEntity entity = getEntityOrThrow(id);
-    mapper.patchEntityFromDto(dto, entity);
-    repository.save(entity);
-    return mapper.toDto(entity);
-}
-```
-
-## Controller
-
-```java
-@PatchMapping("/{id}")
-public ProfileDto patch(@PathVariable UUID id,
-                        @Valid @RequestBody ProfilePatchDto dto) {
-    return profileService.patch(id, dto);
-}
-```
+To "clear" a field via PATCH, a separate convention is needed (e.g., explicit `""` means clear). By default, `null` means "don't touch this field", not "set to null". If clearing fields is required, document this in the API contract.
