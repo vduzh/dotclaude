@@ -38,20 +38,30 @@ Apply these conventions when designing or implementing REST API endpoints.
 
 ## Content Negotiation
 
-Support multiple representations of the same collection via `Accept` header:
+The same URL can return **different representations** of a resource depending on the `Accept` header. This avoids creating separate URLs for each view.
+
+**Vendor media type convention:** `application/vnd.api.{entity}.{view}+json`
+
+| View | Accept Header | Response | Use Case |
+|------|--------------|----------|----------|
+| List | `application/vnd.api.profile.list+json` | `PagedResponse<ProfileListItem>` | Tables with pagination |
+| Lookup | `application/vnd.api.profile.lookup+json` | `ProfileLookup[]` | Dropdowns/selects |
+| Detail | `application/vnd.api.profile.detail+json` | `Profile` (extended) | Detail view with related data |
+| Default | `application/json` | Same as list view | Swagger, generic clients |
 
 ```
-# List view — default representation
+# Same URL, different representations:
 GET /api/v1/profiles
-Accept: application/json
-Accept: application/vnd.api.profile.list+json
-
-# Lookup view — requires explicit Accept header
-GET /api/v1/profiles
-Accept: application/vnd.api.profile.lookup+json
+Accept: application/vnd.api.profile.list+json    → paginated list with subset of fields
+Accept: application/vnd.api.profile.lookup+json   → flat array with id + name
+Accept: application/json                           → default (same as list)
 ```
 
-The **list view is the default** — it serves both `application/json` (for Swagger, generic clients) and the vendor media type. Specialized views (lookup, etc.) require an explicit vendor `Accept` header.
+**Rules:**
+- **List view is the default** — serves both `application/json` and the vendor type
+- **Specialized views** (lookup, detail, etc.) require an explicit vendor `Accept` header
+- Unsupported `Accept` header → `406 Not Acceptable`
+- The framework routes requests based on `Accept` header automatically — no manual parsing
 
 ## Query vs Path Parameters
 
