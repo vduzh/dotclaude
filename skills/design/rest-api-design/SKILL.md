@@ -59,6 +59,34 @@ The **list view is the default** — it serves both `application/json` (for Swag
 - **Path with prefix**: Alternative unique identifier lookup (`/by-email/{email}`, `/by-username/{username}`)
 - Avoid confusing patterns like `/customers/email/{email}` (looks like nested resource)
 
+## GET — Read
+
+```
+# Single resource
+GET /api/v1/profiles/550e8400-...
+→ 200 OK  (resource found)
+→ 404 Not Found  (resource not found)
+
+# Collection (with pagination, filtering, sorting)
+GET /api/v1/profiles?page=1&limit=20&search=john&sort=-createdAt
+→ 200 OK  (always, even if empty — return [] with pagination)
+```
+
+## POST — Create
+
+```
+POST /api/v1/profiles
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john@example.com"
+}
+```
+
+Response: `201 Created` with created resource (including generated `id`).
+
 ## PUT — Full Replacement
 
 All fields required. Null fields overwrite existing values.
