@@ -5,7 +5,7 @@ description: Spring Boot PATCH implementation — Patchable interface, @NullOrNo
 
 # PATCH Implementation (Spring Boot)
 
-Spring Boot implementation of the PATCH design pattern (see `patch-operations` skill for API contract).
+Spring Boot implementation of the PATCH design pattern (see `rest-api-design` skill for API contract).
 
 ## Patchable Interface
 
