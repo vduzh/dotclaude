@@ -99,6 +99,30 @@ public class ProfileEntity {
 - Use `UUID` for IDs
 - Audit fields (`@CreatedDate`, `@LastModifiedDate`) — add only to own entities. Do NOT add to replicated entities (their lifecycle is managed by the source system)
 
+## ID Ownership
+
+- **Own entities**: `id` is generated inside the service via `UUID.randomUUID()` and passed to the mapper. The caller doesn't control the ID.
+  ```java
+  public ProfileDto create(UUID userId, ProfileCreateDto dto) {
+      UUID id = UUID.randomUUID();
+      ProfileEntity entity = mapper.toEntity(dto);
+      entity.setId(id);
+      // ...
+  }
+  ```
+- **Replicated entities** (data from external systems via events): `id` comes from the source system inside the DTO. The service must preserve the original ID.
+
+## Audit Fields
+
+Two approaches — choose one per project:
+
+| Approach | Annotations | Requires |
+|----------|------------|----------|
+| Spring Data Auditing | `@CreatedDate`, `@LastModifiedDate` | `@EnableJpaAuditing` on config |
+| Hibernate timestamps | `@CreationTimestamp`, `@UpdateTimestamp` | Nothing extra |
+
+Add audit fields only to **own entities**. Do NOT add to replicated entities — their lifecycle is managed by the source system.
+
 ## Enums Organization
 
 All enums in separate files in `model/enums/` package:
@@ -119,6 +143,33 @@ public class ProfileServiceImpl implements ProfileService {
 
     @Override
     public ProfileDto create(UUID userId, ProfileCreateDto dto) { ... }
+}
+```
+
+## Delete — Idempotent Pattern
+
+See `rest-api-design` skill for the design rationale. Implementation:
+
+```java
+public void deleteXxx(UUID id) {
+    repository.findById(id).ifPresent(entity -> {
+        repository.delete(entity);
+        log.info("Deleted xxx with ID: {}", id);
+    });
+}
+```
+
+With business rules — checks only performed if the resource is found:
+
+```java
+public void deletePaymentMethod(UUID coachId, UUID paymentMethodId) {
+    paymentMethodRepository.findByIdAndCoachId(paymentMethodId, coachId)
+        .ifPresent(paymentMethod -> {
+            if (subscriptionRepository.existsByPaymentMethodId(paymentMethodId)) {
+                throw new ConflictException("Cannot delete: assigned to subscriptions");
+            }
+            paymentMethodRepository.delete(paymentMethod);
+        });
 }
 ```
 

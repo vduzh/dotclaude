@@ -65,9 +65,4 @@ Let Spring/Swagger infer standard responses (200 OK) from return types. Reserve 
 
 ## @Schema on DTOs
 
-Use `@Schema(name = "Profile")` on DTO classes for clean API names (strips the `Dto` suffix):
-
-```java
-@Schema(name = "ProfileCreate")
-public class ProfileCreateDto { ... }
-```
+See `dto-implementation` skill for `@Schema` usage on DTO classes and fields.

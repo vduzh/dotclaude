@@ -139,12 +139,27 @@ type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'expired';
 - Stops polling when status is `succeeded`, `canceled`, or `expired`
 - Shows timeout message if max attempts reached
 
+### Localization Keys
+
+```json
+{
+  "paymentResult": {
+    "successTitle": "Payment Successful!",
+    "canceledTitle": "Payment Canceled",
+    "expiredTitle": "Payment Expired",
+    "pendingTitle": "Processing Payment...",
+    "pollingTimeout": "Status not updated yet..."
+  }
+}
+```
+
 ### Related Files
 
 - `types/payment.types.ts` — `PaymentStatus` type
 - `pages/PaymentResultPage.tsx` — payment result display with polling
 - `components/common/TopUpBalanceModal/` — balance top-up modal
 - `api/services/balanceService.ts` — payment API calls
+- `i18n/locales/*.json` — translations for payment statuses
 
 ## Jira Integration Workflow
 
@@ -205,6 +220,19 @@ chore(deps): update TypeScript to 5.3.0
 2. User reviews commit message
 3. **User creates commits manually** — do NOT create commits automatically unless explicitly requested
 
+## Common Issues
+
+### 401 Unauthorized
+
+- Check if token exists: `localStorage.getItem('token')`
+- Verify backend is running and accessible
+- Check network tab for failed auth requests
+
+### Type Errors
+
+Run type checking: `npm run type-check`
+TypeScript is configured with strict mode — all types must be explicit.
+
 ## Important Implementation Rules
 
 1. **UI Language**: All user-facing text in English
@@ -212,3 +240,4 @@ chore(deps): update TypeScript to 5.3.0
 3. **No Console Logs**: Remove all `console.log()` from production code
 4. **Route Configuration**: All routes defined in `routes/index.tsx` with lazy loading
 5. **Protected Routes**: Wrap authenticated routes with `<ProtectedRoute>`
+6. **Sorting format**: Use JSON:API format (`sort=-createdAt`). Do NOT use `name_asc`/`name_desc` enum format.

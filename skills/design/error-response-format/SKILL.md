@@ -27,7 +27,7 @@ Apply this format for all error responses in REST APIs.
 
 | Code | HTTP Status | When |
 |------|-------------|------|
-| `VALIDATION_ERROR` | 400 | Bean/field validation failures |
+| `VALIDATION_ERROR` | 400 | Input/field validation failures |
 | `BAD_REQUEST` | 400 | Invalid input (type mismatch, bad UUID, etc.) |
 | `NOT_FOUND` | 404 | Resource not found |
 | `CONFLICT` | 409 | Business conflict or DB constraint violation |
@@ -92,10 +92,10 @@ Rules:
 }
 ```
 
-## Exception-to-HTTP Mapping
+## Error Scenario-to-HTTP Mapping
 
-| Exception / Scenario | HTTP | Code |
-|---------------------|------|------|
+| Scenario | HTTP | Code |
+|----------|------|------|
 | Field validation failure | 400 | `VALIDATION_ERROR` |
 | Invalid path variable (bad UUID, etc.) | 400 | `BAD_REQUEST` |
 | Business input error (FK not found, etc.) | 400 | `BAD_REQUEST` |
@@ -103,10 +103,10 @@ Rules:
 | Access denied | 403 | `FORBIDDEN` |
 | Business conflict ("already exists") | 409 | `CONFLICT` |
 | DB constraint violation | 409 | `CONFLICT` |
-| Unexpected error | 500 | `INTERNAL_ERROR` |
+| Unexpected server error | 500 | `INTERNAL_ERROR` |
 
 ## Design Principles
 
-- **Dedicated exception types** for business semantics (`NotFoundException`, `ConflictException`, `BadRequestException`). Never use generic language exceptions (`IllegalStateException`, `IllegalArgumentException`) for HTTP error mapping — they should become 500 (programming errors).
+- Use **dedicated error types** for business semantics (not found, conflict, bad request). Never let generic programming errors (null pointer, illegal state) map to 4xx — they should become 500.
 - **Never expose stack traces** or internal details in error responses.
 - **Log server errors** (500) with full stack trace. Log client errors (4xx) at debug level only.

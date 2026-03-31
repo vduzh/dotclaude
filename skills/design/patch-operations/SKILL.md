@@ -74,23 +74,6 @@ For string fields in PATCH, the value is either:
 { "firstName": "   " }
 ```
 
-## Implementation Guidance
+## Clearing Fields
 
-### Mapper behavior
-
-The mapper for PATCH must **skip null fields** — only map non-null values to the entity. This is different from PUT mapper, which overwrites all fields including nulls.
-
-```
-PUT  mapper: dto.firstName (even if null) → entity.firstName    // full replacement
-PATCH mapper: dto.firstName (only if non-null) → entity.firstName  // partial update
-```
-
-**Critical:** Never set "skip nulls" behavior globally on the mapper — it would break PUT operations. Apply it only to the patch mapping method.
-
-### Service optimization
-
-Empty patches should be rejected at the validation layer (returns 400 automatically). As a defensive measure, the service can also skip the DB write if no fields are set.
-
-### Delete vs PATCH
-
-To "clear" a field via PATCH, a separate convention is needed (e.g., explicit `""` means clear). By default, `null` means "don't touch this field", not "set to null". If clearing fields is required, document this in the API contract.
+By default, `null` means "don't touch this field", not "set to null". To "clear" a field via PATCH, a separate convention is needed. If clearing fields is required, document this in the API contract.

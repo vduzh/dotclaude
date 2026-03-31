@@ -144,28 +144,3 @@ protected <T> T getOrThrow(Optional<T> optional, String message) {
 }
 ```
 
-## Delete — Idempotent Pattern
-
-```java
-public void deleteXxx(UUID id) {
-    repository.findById(id).ifPresent(entity -> {
-        repository.delete(entity);
-        log.info("Deleted xxx with ID: {}", id);
-    });
-}
-```
-
-With business rules:
-```java
-public void deletePaymentMethod(UUID coachId, UUID paymentMethodId) {
-    paymentMethodRepository.findByIdAndCoachId(paymentMethodId, coachId)
-        .ifPresent(paymentMethod -> {
-            if (subscriptionRepository.existsByPaymentMethodId(paymentMethodId)) {
-                throw new ConflictException("Cannot delete: assigned to subscriptions");
-            }
-            paymentMethodRepository.delete(paymentMethod);
-        });
-}
-```
-
-> Business checks are only performed if the resource is found.

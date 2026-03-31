@@ -123,8 +123,3 @@ Minimal — for dropdown/select components:
 | Empty patch body | Patch | `400` — "At least one field required" |
 | Blank string in patch | Patch | `400` — "Must not be blank" |
 
-## PII in Logs
-
-Input DTOs (Create, Update, Patch) should control which fields appear in logs. Sensitive fields (email, phone, address) must be excluded from `toString()` output. Only safe fields (name, status) should be logged.
-
-Output DTOs (Xxx, ListItem, Lookup) contain only public/display data — default `toString()` is fine.

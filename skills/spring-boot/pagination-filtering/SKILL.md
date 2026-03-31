@@ -1,29 +1,128 @@
 ---
 name: pagination-filtering
-description: Pagination, filtering, and sorting — JSON:API sort format, PagedResponse wrapper, Spring Specifications, Filter pattern, SearchParams
+description: Spring Boot pagination implementation — PagedResponse/PagedResult classes, SortUtil, @ValidSort, Specifications, SearchParams, controller/service chain
 ---
 
-# Pagination, Filtering, Sorting
+# Pagination, Filtering, Sorting (Spring Boot)
 
-MANDATORY for all list endpoints. Apply these patterns when implementing collection endpoints.
+Spring Boot implementation of pagination design (see `pagination-sorting` skill for API contract and JSON format).
 
-## Query Parameters
+## Core Classes
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `page` | integer | 1 | 1-indexed page number |
-| `limit` | integer | 20 | Items per page (1-100) |
-| `sort` | string | `-createdAt` | JSON:API format sort |
-| `search` | string | — | Search across multiple fields (ILIKE) |
-| Filter params | varies | — | Entity-specific filters (`status`, `countryId`, etc.) |
+### PagedResult (Service Layer)
 
-## JSON:API Sort Format
+Project-owned record — returned by services. `Page<T>` (Spring Data) stays inside `service/impl/` and never leaks to interfaces or controllers.
 
-- **Ascending**: `sort=name`
-- **Descending**: `sort=-createdAt` (prefix with `-`)
-- **Multiple fields**: `sort=name,-createdAt` (comma-separated)
+```java
+public record PagedResult<T>(
+    List<T> content,
+    int page,
+    int perPage,
+    long total,
+    int totalPages
+) {
+    public static <T> PagedResult<T> of(Page<T> page) {
+        return new PagedResult<>(
+            page.getContent(),
+            page.getNumber() + 1,  // convert 0-indexed to 1-indexed
+            page.getSize(),
+            page.getTotalElements(),
+            page.getTotalPages()
+        );
+    }
+}
+```
 
-Example: `GET /api/v1/customers?page=2&limit=50&search=john&sort=name,-createdAt`
+### PagedResponse (Controller Layer)
+
+Wraps `PagedResult` for HTTP response:
+
+```java
+@Data
+@Schema(name = "PagedResponse")
+public class PagedResponse<T> {
+    private List<T> data;
+    private PaginationMeta pagination;
+
+    @Data
+    public static class PaginationMeta {
+        private int page;
+        private int perPage;
+        private long total;
+        private int totalPages;
+    }
+
+    public static <T> PagedResponse<T> of(PagedResult<T> result) {
+        PagedResponse<T> response = new PagedResponse<>();
+        response.data = result.content();
+        PaginationMeta meta = new PaginationMeta();
+        meta.page = result.page();
+        meta.perPage = result.perPage();
+        meta.total = result.total();
+        meta.totalPages = result.totalPages();
+        response.pagination = meta;
+        return response;
+    }
+}
+```
+
+### SortUtil
+
+Converts JSON:API sort format (`name,-createdAt`) to Spring `Sort`:
+
+```java
+public class SortUtil {
+    public static Sort parseSortParameter(String sortParam) {
+        if (sortParam == null || sortParam.isBlank()) {
+            return Sort.unsorted();
+        }
+        List<Sort.Order> orders = new ArrayList<>();
+        for (String field : sortParam.split(",")) {
+            field = field.trim();
+            if (field.startsWith("-")) {
+                orders.add(Sort.Order.desc(field.substring(1)));
+            } else {
+                orders.add(Sort.Order.asc(field));
+            }
+        }
+        return Sort.by(orders);
+    }
+}
+```
+
+### @ValidSort
+
+Custom validator for sort parameter — ensures only allowed fields are used:
+
+```java
+@Constraint(validatedBy = SortValidator.class)
+@Target(ElementType.FIELD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface ValidSort {
+    String message() default "Invalid sort field";
+    String[] allowed();
+    Class<?>[] groups() default {};
+    Class<? extends Payload>[] payload() default {};
+}
+
+public class SortValidator implements ConstraintValidator<ValidSort, String> {
+    private Set<String> allowedFields;
+
+    @Override
+    public void initialize(ValidSort annotation) {
+        allowedFields = Set.of(annotation.allowed());
+    }
+
+    @Override
+    public boolean isValid(String value, ConstraintValidatorContext ctx) {
+        if (value == null || value.isBlank()) return true;
+        return Arrays.stream(value.split(","))
+            .map(String::trim)
+            .map(f -> f.startsWith("-") ? f.substring(1) : f)
+            .allMatch(allowedFields::contains);
+    }
+}
+```
 
 ## SearchParams DTO
 
@@ -44,34 +143,13 @@ public class CustomerSearchParams {
 }
 ```
 
-## PagedResponse Wrapper
-
-All list endpoints (`application/vnd.api.*.list+json`) return:
-
-```json
-{
-  "data": [...],
-  "pagination": {
-    "page": 1,
-    "perPage": 20,
-    "total": 156,
-    "totalPages": 8
-  }
-}
-```
-
-**NOT affected** (return `T[]` directly):
-- Lookup endpoints (`*.lookup+json`)
-- Single resource endpoints (`GET /{id}`)
-- Mutation endpoints (POST, PUT, PATCH, DELETE)
-- Reference/dictionary endpoints
-
 ## Implementation Chain
 
 ### Controller
 
 ```java
 @GetMapping(produces = {"application/json", "application/vnd.api.customer.list+json"})
+@Operation(summary = "Get customers as list")
 public ResponseEntity<PagedResponse<CustomerListItemDto>> getCustomersAsList(
         @Valid @ModelAttribute CustomerSearchParams params) {
     PagedResult<CustomerListItemDto> result = customerService.search(params);
@@ -81,8 +159,6 @@ public ResponseEntity<PagedResponse<CustomerListItemDto>> getCustomersAsList(
 
 ### Service
 
-Services return `PagedResult<T>` (project-owned record). `Page<T>` (Spring Data) stays inside `service/impl/` — never leaks to interfaces or controllers:
-
 ```java
 @Transactional(readOnly = true)
 public PagedResult<CustomerListItemDto> search(CustomerSearchParams params) {
@@ -90,7 +166,8 @@ public PagedResult<CustomerListItemDto> search(CustomerSearchParams params) {
     sort = sort.and(Sort.by("id"));  // stable sorting
     Pageable pageable = PageRequest.of(params.getPage() - 1, params.getLimit(), sort);
 
-    Specification<Customer> spec = CustomerSpecification.withFilters(params.getSearch(), params.getCountryId());
+    Specification<Customer> spec = CustomerSpecification.withFilters(
+        params.getSearch(), params.getCountryId());
     Page<Customer> page = repository.findAll(spec, pageable);
 
     return PagedResult.of(page.map(mapper::toListItemDto));
@@ -131,7 +208,8 @@ public class CustomerSpecification {
     }
 
     private static Specification<Customer> hasCountry(UUID countryId) {
-        return countryId == null ? null : (root, query, cb) -> cb.equal(root.get("country").get("id"), countryId);
+        return countryId == null ? null
+            : (root, query, cb) -> cb.equal(root.get("country").get("id"), countryId);
     }
 }
 ```

@@ -126,6 +126,35 @@ app:
 - **Порт 8081** — management/actuator (только внутри K8s кластера)
 - **Dev:** один порт для удобства локальной разработки
 
+```yaml
+# application.yml (prod)
+management:
+  server:
+    port: 8081
+
+# application-dev.yml
+management:
+  server:
+    port: 8080
+```
+
+**SecurityFilterChain для actuator:**
+```java
+@Bean
+@Order(1)
+public SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http) throws Exception {
+    http
+            .securityMatcher(EndpointRequest.toAnyEndpoint())
+            .csrf(AbstractHttpConfigurer::disable)
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+    return http.build();
+}
+```
+
+**Profile-specific Security:**
+- **Dev**: Actuator на порту 8080, все endpoints открыты (`/actuator/**`)
+- **Test/Prod**: Actuator на порту 8081, только `health,prometheus`
+
 **Always Public:**
 - Health check (`/`)
 - Swagger UI (`/swagger-ui.html`)
@@ -215,11 +244,22 @@ public enum PaymentStatus {
 ### Configuration
 
 ```yaml
+# application.yml
 app:
   payments:
     pending-check-threshold-minutes: 5
     expiration-hours: 24
+
+# application-dev.yml (shorter for testing)
+app:
+  payments:
+    pending-check-threshold-minutes: 2
+    expiration-hours: 1
 ```
+
+### Disabling "Allow recurring payments" checkbox
+
+`save_payment_method: false` is set in `YooKassaPaymentRequestDto` to hide the auto-debit checkbox on YooKassa payment page.
 
 ### Related Files
 
