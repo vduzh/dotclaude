@@ -1,15 +1,10 @@
----
-name: spring-security
-description: Spring Security for REST APIs — dual SecurityFilterChain, stateless JWT, rate limiting with Bucket4j, login attempt protection, security exceptions
----
+# Security — Self-issued JWTs (JJWT style)
 
-# Spring Security (REST API)
+Spring Security with service-issued JWTs, Bucket4j rate limiting, and login-attempt protection.
 
-Spring Boot implementation of API security patterns (see `api-security` skill for design).
+See `spring-boot-gradle-setup/references/security-jjwt.md` for dependency setup.
 
 ## Dual SecurityFilterChain
-
-Two filter chains — actuator (no auth) and API (JWT auth):
 
 ```java
 @Configuration
@@ -34,7 +29,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/api/v1/auth/**", "/api/v1/public/**").permitAll()
+                .requestMatchers("/api/v1/auth/**", "/api/v1/public/**").permitAll()
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**").permitAll()
                 .anyRequest().authenticated()
             )
@@ -50,9 +45,9 @@ public class SecurityConfig {
 }
 ```
 
-**Filter chain order:** RateLimitingFilter → JwtAuthenticationFilter → UsernamePasswordAuthenticationFilter
+Filter order: RateLimitingFilter → JwtAuthenticationFilter → UsernamePasswordAuthenticationFilter.
 
-## CORS Configuration
+## CORS
 
 ```java
 @Bean
@@ -71,7 +66,7 @@ public CorsConfigurationSource corsConfigurationSource() {
 }
 ```
 
-When `allowCredentials(true)`, always list headers explicitly — never wildcard `*`.
+When `allowCredentials(true)`, always list allowed headers explicitly — never wildcard `*`.
 
 ## Rate Limiting (Bucket4j + Caffeine)
 
@@ -99,20 +94,15 @@ public class RateLimitingProperties {
 }
 ```
 
-### Cache Config
+### Cache config
 
 ```java
-@Configuration
-@RequiredArgsConstructor
-public class RateLimitConfig {
-
-    @Bean
-    public Cache<String, Bucket> rateLimitBuckets(RateLimitingProperties props) {
-        return Caffeine.newBuilder()
-            .expireAfterAccess(Duration.ofMinutes(props.getCache().getExpireAfterAccessMinutes()))
-            .maximumSize(props.getCache().getMaximumSize())
-            .build();
-    }
+@Bean
+public Cache<String, Bucket> rateLimitBuckets(RateLimitingProperties props) {
+    return Caffeine.newBuilder()
+        .expireAfterAccess(Duration.ofMinutes(props.getCache().getExpireAfterAccessMinutes()))
+        .maximumSize(props.getCache().getMaximumSize())
+        .build();
 }
 ```
 
@@ -130,33 +120,18 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                      HttpServletResponse response,
                                      FilterChain chain) throws ServletException, IOException {
-        if (!properties.isEnabled()) {
-            chain.doFilter(request, response);
-            return;
-        }
-
+        if (!properties.isEnabled()) { chain.doFilter(request, response); return; }
         String endpoint = resolveEndpoint(request.getRequestURI());
-        if (endpoint == null) {
-            chain.doFilter(request, response);
-            return;
-        }
+        if (endpoint == null) { chain.doFilter(request, response); return; }
 
-        String clientIp = RequestUtils.getClientIP(request);
-        String key = clientIp + ":" + endpoint;
-        int rpm = resolveRpm(endpoint);
-
-        Bucket bucket = buckets.get(key, k -> createBucket(rpm));
-        if (!bucket.tryConsume(1)) {
-            throw new RateLimitExceededException("Rate limit exceeded");
-        }
-
+        String key = RequestUtils.getClientIP(request) + ":" + endpoint;
+        Bucket bucket = buckets.get(key, k -> createBucket(resolveRpm(endpoint)));
+        if (!bucket.tryConsume(1)) throw new RateLimitExceededException("Rate limit exceeded");
         chain.doFilter(request, response);
     }
 
     private Bucket createBucket(int rpm) {
-        return Bucket.builder()
-            .addLimit(Bandwidth.simple(rpm, Duration.ofMinutes(1)))
-            .build();
+        return Bucket.builder().addLimit(Bandwidth.simple(rpm, Duration.ofMinutes(1))).build();
     }
 
     @Override
@@ -168,6 +143,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
 ## Login Attempt Protection (Caffeine)
 
+Key: `IP:email.toLowerCase()` — prevents Account Lockout attack (attacker can only block own IP's access, not the victim's).
+
 ```java
 @Service
 @RequiredArgsConstructor
@@ -178,32 +155,18 @@ public class LoginAttemptServiceImpl implements LoginAttemptService {
 
     @Override
     public void recordFailedAttempt(String ip, String email) {
-        String key = buildKey(ip, email);
-        int attempts = attemptsCache.get(key, k -> 0) + 1;
-        attemptsCache.put(key, attempts);
-    }
-
-    @Override
-    public void clearAttempts(String ip, String email) {
-        attemptsCache.invalidate(buildKey(ip, email));
+        String key = ip + ":" + email.toLowerCase();
+        attemptsCache.put(key, attemptsCache.get(key, k -> 0) + 1);
     }
 
     @Override
     public boolean isBlocked(String ip, String email) {
         if (!properties.isEnabled()) return false;
-        int attempts = attemptsCache.get(buildKey(ip, email), k -> 0);
-        return attempts >= properties.getMaxAttempts();
-    }
-
-    private String buildKey(String ip, String email) {
-        return ip + ":" + email.toLowerCase();
+        return attemptsCache.get(ip + ":" + email.toLowerCase(), k -> 0)
+            >= properties.getMaxAttempts();
     }
 }
-```
 
-### Cache Config
-
-```java
 @Bean
 public Cache<String, Integer> loginAttemptCache(LoginAttemptProperties props) {
     return Caffeine.newBuilder()
@@ -213,25 +176,21 @@ public Cache<String, Integer> loginAttemptCache(LoginAttemptProperties props) {
 }
 ```
 
-## Client IP Detection
+## Client IP detection
 
 ```java
 public class RequestUtils {
     public static String getClientIP(HttpServletRequest request) {
         String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isEmpty()) {
-            return xff.split(",")[0].trim();
-        }
+        if (xff != null && !xff.isEmpty()) return xff.split(",")[0].trim();
         String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isEmpty()) {
-            return realIp;
-        }
+        if (realIp != null && !realIp.isEmpty()) return realIp;
         return request.getRemoteAddr();
     }
 }
 ```
 
-## Security Exceptions in GlobalExceptionHandler
+## Security exceptions in GlobalExceptionHandler
 
 ```java
 @ExceptionHandler(AuthenticationException.class)
@@ -245,28 +204,16 @@ public ErrorDto handleAuth(AuthenticationException ex) {
 public ErrorDto handleRateLimit(RateLimitExceededException ex) {
     return ErrorDto.builder().code("TOO_MANY_REQUESTS").message(ex.getMessage()).build();
 }
-
-@ExceptionHandler(AccountTemporarilyLockedException.class)
-@ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
-public ErrorDto handleLocked(AccountTemporarilyLockedException ex) {
-    return ErrorDto.builder().code("ACCOUNT_TEMPORARILY_LOCKED").message(ex.getMessage()).build();
-}
-
-@ExceptionHandler(AccountDisabledException.class)
-@ResponseStatus(HttpStatus.FORBIDDEN)
-public ErrorDto handleDisabled(AccountDisabledException ex) {
-    return ErrorDto.builder().code("ACCOUNT_DISABLED").message(ex.getMessage()).build();
-}
 ```
 
-## YAML Configuration
+## YAML config
 
 ```yaml
 app:
   jwt:
-    secret: ${APP_JWT_SECRET}         # min 256-bit key
-    expiration-ms: 86400000           # 24 hours
-    refresh-expiration-ms: 2592000000 # 30 days
+    secret: ${APP_JWT_SECRET}           # min 256-bit key
+    expiration-ms: 86400000             # 24 hours
+    refresh-expiration-ms: 2592000000   # 30 days
 
   rate-limiting:
     enabled: true

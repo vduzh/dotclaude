@@ -1,20 +1,25 @@
 ---
 name: rest-api-design
-description: REST API design conventions — URI versioning, HTTP methods, status codes, content negotiation, query/path params, update/delete/patch semantics
+description: >
+  Design REST API contracts for a Spring Boot backend — URI conventions, HTTP
+  verbs, status codes, content negotiation, DTO naming, pagination, error
+  responses, and security patterns. Use this skill when designing or reviewing
+  API endpoints, request/response shapes, error formats, or security behavior.
 ---
 
 # REST API Design Conventions
 
 Apply these conventions when designing or implementing REST API endpoints.
 
-## URI Versioning
+## Non-negotiable rules
 
-```
-/api/v1/...
-/api/v2/...
-```
+1. All endpoints under `/api/v1/...` — URI versioning.
+2. List view is the default representation — serves both `application/json` and the vendor type; specialized views (lookup, detail) require an explicit `Accept` header.
+3. DELETE is idempotent — return `204 No Content` whether the resource existed or not.
+4. Collection endpoints always return `[]` with pagination on empty — never `404`.
+5. All error responses use `{code, message, details?}` — see `references/error-format.md`.
 
-## HTTP Methods
+## HTTP methods
 
 | Method | Purpose |
 |--------|---------|
@@ -24,7 +29,7 @@ Apply these conventions when designing or implementing REST API endpoints.
 | PATCH | Partial update (only provided fields) |
 | DELETE | Delete resource |
 
-## Status Codes
+## Status codes
 
 | Code | When |
 |------|------|
@@ -39,114 +44,87 @@ Apply these conventions when designing or implementing REST API endpoints.
 | 409 Conflict | Business conflict, duplicate, constraint violation |
 | 429 Too Many Requests | Rate limit exceeded |
 
-## Content Negotiation
+## Content negotiation
 
-The same URL can return **different representations** of a resource depending on the `Accept` header. This avoids creating separate URLs for each view.
+Same URL, different representations via `Accept` header. Vendor media type convention: `application/vnd.api.{entity}.{view}+json`
 
-**Vendor media type convention:** `application/vnd.api.{entity}.{view}+json`
-
-| View | Accept Header | Response | Use Case |
+| View | Accept header | Response | Use case |
 |------|--------------|----------|----------|
 | List | `application/vnd.api.profile.list+json` | `PagedResponse<ProfileListItem>` | Tables with pagination |
 | Lookup | `application/vnd.api.profile.lookup+json` | `ProfileLookup[]` | Dropdowns/selects |
-| Detail | `application/vnd.api.profile.detail+json` | `Profile` (extended) | Detail view with related data |
 | Default | `application/json` | Same as list view | Swagger, generic clients |
 
-```
-# Same URL, different representations:
-GET /api/v1/profiles
-Accept: application/vnd.api.profile.list+json    → paginated list with subset of fields
-Accept: application/vnd.api.profile.lookup+json   → flat array with id + name
-Accept: application/json                           → default (same as list)
-```
-
-**Rules:**
-- **List view is the default** — serves both `application/json` and the vendor type
-- **Specialized views** (lookup, detail, etc.) require an explicit vendor `Accept` header
+- List view is the default — also served for `application/json`
+- Lookup and other specialized views require explicit vendor `Accept` header
 - Unsupported `Accept` header → `406 Not Acceptable`
-- The framework routes requests based on `Accept` header automatically — no manual parsing
 
-## Query vs Path Parameters
+## Query vs path parameters
 
-- **Query params**: Filtering/searching collections (`?email=...`, `?status=active`)
-- **Path with prefix**: Alternative unique identifier lookup (`/by-email/{email}`, `/by-username/{username}`)
-- Avoid confusing patterns like `/customers/email/{email}` (looks like nested resource)
+- **Query params**: filtering/searching collections (`?email=...`, `?status=active`)
+- **Path with prefix**: alternative unique identifier (`/by-email/{email}`, `/by-username/{username}`)
+- Avoid `/customers/email/{email}` — looks like a nested resource
 
-## GET — Read
+## GET
 
 ```
-# Single resource
 GET /api/v1/profiles/550e8400-...
-→ 200 OK  (resource found)
-→ 404 Not Found  (resource not found)
+→ 200 OK  |  404 Not Found
 
-# Collection (with pagination, filtering, sorting)
 GET /api/v1/profiles?page=1&limit=20&search=john&sort=-createdAt
 → 200 OK  (always, even if empty — return [] with pagination)
 ```
 
-## POST — Create
+## POST
 
 ```
 POST /api/v1/profiles
-Content-Type: application/json
-
-{
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john@example.com"
-}
+→ 201 Created  (with created resource including generated id)
 ```
 
-Response: `201 Created` with created resource (including generated `id`).
-
-## PUT — Full Replacement
+## PUT — full replacement
 
 All fields required. Null fields overwrite existing values.
 
 ```
 PUT /api/v1/profiles/550e8400-...
-Content-Type: application/json
-
-{
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john@example.com"
-}
+→ 200 OK  (with updated resource)
 ```
 
-Response: `200 OK` with updated resource.
+## PATCH — partial update
 
-## PATCH — Partial Update
-
-Only provided (non-null) fields are updated. Absent/null fields are **ignored**.
+Only provided (non-null) fields are updated. Absent/null fields are ignored.
 
 ```
 PATCH /api/v1/profiles/550e8400-...
-Content-Type: application/json
-
-{
-  "lastName": "Smith"
-}
+{ "lastName": "Smith" }
+→ 200 OK  (with full updated resource)
 ```
 
-Response: `200 OK` with full updated resource.
-
-**Validation rules:**
-- Empty body `{}` or all-null fields → `400 Bad Request` (at least one field required)
-- Blank string `""` or `"   "` → `400 Bad Request` (field is either absent or a valid non-blank value)
+Validation rules:
+- Empty body `{}` or all-null fields → `400 Bad Request`
+- Blank string `""` → `400 Bad Request` (field is either absent or a valid non-blank value)
 - `null` means "don't touch this field", not "set to null"
 
-## DELETE — Idempotent
-
-DELETE must be **idempotent** per RFC 7231:
-- If resource exists → delete it, return **204 No Content**
-- If resource does NOT exist → just return **204 No Content** (no 404 error)
+## DELETE — idempotent
 
 ```
 DELETE /api/v1/profiles/550e8400-...
-
 → 204 No Content  (whether resource existed or not)
 ```
 
-**With business rules:** If the resource is found and cannot be deleted (e.g., in use by other resources), return `409 Conflict`. Business checks are only performed if the resource is found — if not found, return 204 silently.
+With business rules: if resource is found but cannot be deleted (e.g., in use), return `409 Conflict`. Business checks only run if resource is found.
+
+## Optional references
+
+Load the reference file for each area the current task touches:
+
+- `references/dto-conventions.md` — DTO naming (noun-first), DTO types per operation, JSON examples.
+  Load when designing request/response shapes or DTO naming.
+- `references/pagination-sorting.md` — query parameters, JSON:API sort format, `PagedResponse` wrapper, stable sorting.
+  Load when designing list endpoints.
+- `references/error-format.md` — error codes, validation error shape, scenario-to-HTTP mapping.
+  Load when designing error responses.
+- `references/lookup-endpoints.md` — strategy by data volume, `X-Total-Count`, frontend UX pattern.
+  Load when designing dropdown/autocomplete endpoints.
+- `references/api-security.md` — stateless auth, cookie-based tokens, rate limiting, brute-force protection.
+  Load when designing authentication or security behavior.

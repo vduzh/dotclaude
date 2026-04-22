@@ -1,17 +1,12 @@
----
-name: pagination-filtering
-description: Spring Boot pagination implementation — PagedResponse/PagedResult classes, SortUtil, @ValidSort, Specifications, SearchParams, controller/service chain
----
+# Pagination, Filtering, Sorting
 
-# Pagination, Filtering, Sorting (Spring Boot)
+`PagedResult`/`PagedResponse` classes, `SortUtil`, `@ValidSort`, Specifications, Filter objects, `SearchParams`.
 
-Spring Boot implementation of pagination design (see `pagination-sorting` skill for API contract and JSON format).
+## Core classes
 
-## Core Classes
+### PagedResult (service layer)
 
-### PagedResult (Service Layer)
-
-Project-owned record — returned by services. `Page<T>` (Spring Data) stays inside `service/impl/` and never leaks to interfaces or controllers.
+`Page<T>` (Spring Data) stays inside `service/impl/` and never leaks to interfaces or controllers:
 
 ```java
 public record PagedResult<T>(
@@ -24,7 +19,7 @@ public record PagedResult<T>(
     public static <T> PagedResult<T> of(Page<T> page) {
         return new PagedResult<>(
             page.getContent(),
-            page.getNumber() + 1,  // convert 0-indexed to 1-indexed
+            page.getNumber() + 1,   // convert 0-indexed to 1-indexed
             page.getSize(),
             page.getTotalElements(),
             page.getTotalPages()
@@ -33,9 +28,7 @@ public record PagedResult<T>(
 }
 ```
 
-### PagedResponse (Controller Layer)
-
-Wraps `PagedResult` for HTTP response:
+### PagedResponse (controller layer)
 
 ```java
 @Data
@@ -73,17 +66,13 @@ Converts JSON:API sort format (`name,-createdAt`) to Spring `Sort`:
 ```java
 public class SortUtil {
     public static Sort parseSortParameter(String sortParam) {
-        if (sortParam == null || sortParam.isBlank()) {
-            return Sort.unsorted();
-        }
+        if (sortParam == null || sortParam.isBlank()) return Sort.unsorted();
         List<Sort.Order> orders = new ArrayList<>();
         for (String field : sortParam.split(",")) {
             field = field.trim();
-            if (field.startsWith("-")) {
-                orders.add(Sort.Order.desc(field.substring(1)));
-            } else {
-                orders.add(Sort.Order.asc(field));
-            }
+            orders.add(field.startsWith("-")
+                ? Sort.Order.desc(field.substring(1))
+                : Sort.Order.asc(field));
         }
         return Sort.by(orders);
     }
@@ -139,58 +128,48 @@ public class CustomerSearchParams {
     private String sort = "-createdAt";
 
     private String search;
-    private UUID countryId;  // entity-specific filter
+    private UUID countryId;
 }
 ```
 
-## Implementation Chain
-
-### Controller
+## Controller / Service chain
 
 ```java
+// Controller
 @GetMapping(produces = {"application/json", "application/vnd.api.customer.list+json"})
-@Operation(summary = "Get customers as list")
-public ResponseEntity<PagedResponse<CustomerListItemDto>> getCustomersAsList(
+public ResponseEntity<PagedResponse<CustomerListItemDto>> list(
         @Valid @ModelAttribute CustomerSearchParams params) {
-    PagedResult<CustomerListItemDto> result = customerService.search(params);
-    return ResponseEntity.ok(PagedResponse.of(result));
+    return ResponseEntity.ok(PagedResponse.of(customerService.search(params)));
 }
-```
 
-### Service
-
-```java
+// Service
 @Transactional(readOnly = true)
 public PagedResult<CustomerListItemDto> search(CustomerSearchParams params) {
-    Sort sort = SortUtil.parseSortParameter(params.getSort());
-    sort = sort.and(Sort.by("id"));  // stable sorting
+    Sort sort = SortUtil.parseSortParameter(params.getSort())
+        .and(Sort.by("id"));    // always append id for stable sorting
     Pageable pageable = PageRequest.of(params.getPage() - 1, params.getLimit(), sort);
 
     Specification<Customer> spec = CustomerSpecification.withFilters(
         params.getSearch(), params.getCountryId());
-    Page<Customer> page = repository.findAll(spec, pageable);
-
-    return PagedResult.of(page.map(mapper::toListItemDto));
+    return PagedResult.of(repository.findAll(spec, pageable).map(mapper::toListItemDto));
 }
 ```
 
-Key points:
-- Convert 1-indexed page to 0-indexed: `PageRequest.of(page - 1, limit, sort)`
-- Always add `id` as final sort field for stable sorting
-- Return empty array `[]` for no results (NOT 404)
+- Convert 1-indexed page to 0-indexed: `PageRequest.of(page - 1, ...)`
+- Always append `id` as final sort field for stable sorting
+- Return empty array `[]` for no results — never 404
 
-## Specification Pattern
+## Specification pattern
 
 ```java
 public class CustomerSpecification {
 
-    // 1-3 parameters: individual arguments
+    // 1-3 params: individual arguments
     public static Specification<Customer> withFilters(String search, UUID countryId) {
-        return Specification.where(searchLike(search))
-            .and(hasCountry(countryId));
+        return Specification.where(searchLike(search)).and(hasCountry(countryId));
     }
 
-    // 4+ parameters: use Filter object
+    // 4+ params: use Filter object
     public static Specification<Customer> withFilters(CustomerFilter filter) {
         return Specification.where(searchLike(filter.getSearch()))
             .and(hasCountry(filter.getCountryId()))
@@ -206,15 +185,10 @@ public class CustomerSpecification {
             cb.like(cb.lower(root.get("email")), pattern)
         );
     }
-
-    private static Specification<Customer> hasCountry(UUID countryId) {
-        return countryId == null ? null
-            : (root, query, cb) -> cb.equal(root.get("country").get("id"), countryId);
-    }
 }
 ```
 
-## Filter Class (4+ Parameters)
+## Filter class (4+ parameters)
 
 Place in `repository/spec/` next to Specification:
 

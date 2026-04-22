@@ -1,13 +1,12 @@
----
-name: lookup-implementation
-description: Spring Boot lookup endpoint implementation — controller with X-Total-Count header, service for large/small lookups, content negotiation
----
+# Lookup Endpoint Implementation
 
-# Lookup Endpoint Implementation (Spring Boot)
+Large vs small lookup, `X-Total-Count` header.
 
-Spring Boot implementation of lookup endpoints (see `lookup-endpoints` skill for API contract and design).
+Expose `X-Total-Count` in CORS `exposedHeaders` — see `references/security-jjwt.md` or `references/security-oauth2.md`.
 
-## Large Lookup (Server-Side Search)
+## Large lookup (server-side search)
+
+Use when the dataset can be large (athletes, users, clients). Paginate internally, return `List<T>` + `X-Total-Count` header.
 
 ### Controller
 
@@ -19,10 +18,9 @@ public ResponseEntity<List<AthleteLookupDto>> getAthletesAsLookup(
         @Valid @ModelAttribute AthleteLookupSearchParams params) {
     UUID userId = getCurrentUserId(userDetails);
     PagedResult<AthleteLookupDto> result = athleteService.searchAthletesAsLookup(userId, params);
-
     return ResponseEntity.ok()
         .header("X-Total-Count", String.valueOf(result.total()))
-        .body(result.content());  // List<T> — contract unchanged
+        .body(result.content());
 }
 ```
 
@@ -44,17 +42,17 @@ public class AthleteLookupSearchParams {
 @Transactional(readOnly = true)
 public PagedResult<AthleteLookupDto> searchAthletesAsLookup(UUID userId, AthleteLookupSearchParams params) {
     Pageable pageable = PageRequest.of(0, params.getLimit(), Sort.by("lastName", "firstName"));
-
     Specification<Athlete> spec = AthleteSpecification.withFilters(params.getSearch(), userId);
     Page<Athlete> page = repository.findAll(spec, pageable);
-
     return PagedResult.of(page.map(mapper::toLookupDto));
 }
 ```
 
-Note: `PagedResult` is reused here to carry `total` for the `X-Total-Count` header, even though the response body is `List<T>`.
+`PagedResult` carries `total` for the `X-Total-Count` header even though the response body is `List<T>`.
 
-## Small Lookup (Load All)
+## Small lookup (load all)
+
+Use when the dataset is small and static (currencies, payment method types, subscription plans — typically <100 items).
 
 ### Controller
 
@@ -76,27 +74,3 @@ public List<CurrencyLookupDto> getAllAsLookup() {
         .toList();
 }
 ```
-
-## CORS Configuration
-
-Expose `X-Total-Count` header for frontend access:
-
-```yaml
-app:
-  cors:
-    allowed-origins: http://localhost:3000
-    exposed-headers: Authorization, X-Total-Count
-```
-
-```java
-@Override
-public void addCorsMappings(CorsRegistry registry) {
-    registry.addMapping("/api/**")       // scope to /api/** only, not /**
-        .allowedOrigins(corsProperties.getAllowedOrigins())
-        .allowedHeaders("Content-Type", "Authorization", "Accept")  // explicit, never wildcard *
-        .exposedHeaders("Authorization", "X-Total-Count")
-        .allowCredentials(true);
-}
-```
-
-**Important:** When `allowCredentials(true)`, always list allowed headers explicitly — avoid wildcard `*` to keep CORS configuration explicit and spec-compliant.

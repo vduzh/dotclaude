@@ -1,15 +1,8 @@
----
-name: patch-implementation
-description: Spring Boot PATCH implementation — Patchable interface, @NullOrNotBlank and @NotEmptyPatch validators, MapStruct @BeanMapping for partial updates
----
+# PATCH Implementation
 
-# PATCH Implementation (Spring Boot)
+`Patchable` interface, `@NullOrNotBlank`, `@NotEmptyPatch` validators, MapStruct `@BeanMapping` for partial updates.
 
-Spring Boot implementation of the PATCH design pattern (see `rest-api-design` skill for API contract).
-
-## Patchable Interface
-
-All Patch DTOs implement `Patchable` — a contract for validation and optimization:
+## Patchable interface
 
 ```java
 public interface Patchable {
@@ -42,11 +35,11 @@ public class ProfilePatchDto implements Patchable {
 }
 ```
 
-## Custom Validators
+## Custom validators
 
 ### @NullOrNotBlank
 
-Allows `null` (field not provided) but rejects blank/whitespace. Standard `@NotBlank` would reject `null`, which is wrong for PATCH semantics.
+Allows `null` (field not provided) but rejects blank/whitespace:
 
 ```java
 @Constraint(validatedBy = NullOrNotBlankValidator.class)
@@ -88,9 +81,9 @@ public class NotEmptyPatchValidator implements ConstraintValidator<NotEmptyPatch
 }
 ```
 
-## MapStruct: @BeanMapping for Patch Only
+## MapStruct: @BeanMapping on patch method only
 
-**Critical:** Set `nullValuePropertyMappingStrategy = IGNORE` only on the patch method via `@BeanMapping`. Never at `@Mapper` level — it would break PUT's `updateEntityFromDto`.
+Set `nullValuePropertyMappingStrategy = IGNORE` only on the patch method via `@BeanMapping`. Never at `@Mapper` level — it would break PUT's `updateEntityFromDto`:
 
 ```java
 @Mapper(componentModel = "spring")
@@ -107,7 +100,7 @@ public interface ProfileMapper {
 
 ## Service
 
-Empty patches are rejected at validation layer (`@NotEmptyPatch` + `@Valid` → 400). Service also skips DB write as a defensive layer:
+Empty patches are rejected at validation layer (`@NotEmptyPatch` + `@Valid` → 400). Service skips DB write as a defensive layer:
 
 ```java
 @Transactional
@@ -115,8 +108,8 @@ public ProfileDto patch(UUID id, ProfilePatchDto dto) {
     if (dto.isEmpty()) {
         return findById(id);
     }
-
-    ProfileEntity entity = getEntityOrThrow(id);
+    ProfileEntity entity = repository.findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("Profile not found: " + id));
     mapper.patchEntityFromDto(dto, entity);
     repository.save(entity);
     return mapper.toDto(entity);

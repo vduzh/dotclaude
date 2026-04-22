@@ -1,0 +1,79 @@
+# Error Response Format
+
+Standard error shape for all REST API error responses.
+
+## Error object
+
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Human-readable description",
+  "details": { ... }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `code` | Always | Machine-readable error code |
+| `message` | Always | Human-readable description |
+| `details` | Validation only | Field-level errors; omitted (not `null`) for all other errors |
+
+## Error codes
+
+| Code | HTTP | When |
+|------|------|------|
+| `VALIDATION_ERROR` | 400 | Input/field validation failures |
+| `BAD_REQUEST` | 400 | Invalid input (type mismatch, bad UUID, etc.) |
+| `NOT_FOUND` | 404 | Resource not found |
+| `CONFLICT` | 409 | Business conflict or DB constraint violation |
+| `FORBIDDEN` | 403 | Access denied |
+| `UNAUTHORIZED` | 401 | Missing or invalid authentication |
+| `TOO_MANY_REQUESTS` | 429 | Rate limit exceeded |
+| `ACCOUNT_TEMPORARILY_LOCKED` | 429 | Account locked after too many failed attempts |
+| `INTERNAL_ERROR` | 500 | Unexpected server error |
+
+## Validation error (400)
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Request validation failed",
+  "details": {
+    "firstName": "First name is required",
+    "lastName": "Last name must be at most 50 characters",
+    "email": "Invalid email format"
+  }
+}
+```
+
+- Field-level errors keyed by field name
+- Class-level errors (e.g. "at least one field required") keyed by object name
+- One error per field — first encountered wins
+
+## Non-validation errors
+
+`details` is omitted entirely:
+
+```json
+{ "code": "NOT_FOUND", "message": "Profile not found with id: 550e8400-..." }
+{ "code": "CONFLICT", "message": "User with this email already exists" }
+{ "code": "BAD_REQUEST", "message": "Invalid parameter: id" }
+{ "code": "INTERNAL_ERROR", "message": "Internal server error" }
+```
+
+## Scenario mapping
+
+| Scenario | HTTP | Code |
+|----------|------|------|
+| Field validation failure | 400 | `VALIDATION_ERROR` |
+| Invalid path variable (bad UUID, etc.) | 400 | `BAD_REQUEST` |
+| Business input error (FK not found) | 400 | `BAD_REQUEST` |
+| Resource not found | 404 | `NOT_FOUND` |
+| Access denied | 403 | `FORBIDDEN` |
+| Rate limit exceeded | 429 | `TOO_MANY_REQUESTS` |
+| Account temporarily locked | 429 | `ACCOUNT_TEMPORARILY_LOCKED` |
+| Business conflict ("already exists") | 409 | `CONFLICT` |
+| DB constraint violation | 409 | `CONFLICT` |
+| Unexpected server error | 500 | `INTERNAL_ERROR` |
+
+Never expose stack traces or internal details. Never let generic programming errors map to 4xx — they become 500.

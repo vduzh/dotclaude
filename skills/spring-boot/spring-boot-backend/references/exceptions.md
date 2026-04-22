@@ -1,15 +1,8 @@
----
-name: exception-handling
-description: Exception handling in Spring Boot — dedicated exceptions, GlobalExceptionHandler with @ControllerAdvice, ErrorDto, Exception vs Optional pattern
----
-
 # Exception Handling
 
-Apply these patterns for exception handling in Spring Boot REST APIs.
+Dedicated exception classes, `GlobalExceptionHandler`, `ErrorDto`, Exception-vs-Optional decision.
 
-## Dedicated Exception Classes
-
-Use dedicated exception classes for business semantics. **Never** use `IllegalStateException`/`IllegalArgumentException` for HTTP error mapping — standard Java exceptions that escape to the generic handler become 500, which is correct for programming errors.
+## Exception classes
 
 ```java
 public class ResourceNotFoundException extends RuntimeException {
@@ -107,40 +100,27 @@ public class GlobalExceptionHandler {
 }
 ```
 
-## Service Layer: Exception vs Optional
+For security-specific exceptions (`AuthenticationException`, `RateLimitExceededException`, etc.), see `references/security-jjwt.md`.
 
-### Throw Exception — for REST endpoints expecting a specific resource
+## Exception vs Optional
 
-```java
-public ProfileDto findById(UUID id) {
-    return repository.findById(id)
-        .map(mapper::toDto)
-        .orElseThrow(() -> new ResourceNotFoundException("Profile not found with id: " + id));
-}
-```
-
-### Return Optional — for internal logic where absence is valid
-
-```java
-public Optional<UserDto> findByEmail(String email) {
-    return repository.findByEmail(email).map(mapper::toDto);
-}
-```
-
-### Decision Table
-
-| Scenario | Return Type | Example |
+| Scenario | Return type | Example |
 |----------|-------------|---------|
 | REST `GET /resource/{id}` | Throw exception | `findById(id)` |
 | REST collection search | Empty list `[]` | `searchProfiles(params)` |
 | Internal service logic | `Optional<T>` | `findByEmail(email)` |
 | FK validation | `existsById()` | `repository.existsById(id)` |
 
-## Helper Method
-
 ```java
-protected <T> T getOrThrow(Optional<T> optional, String message) {
-    return optional.orElseThrow(() -> new ResourceNotFoundException(message));
+// Throw — for REST endpoints expecting a specific resource
+public ProfileDto findById(UUID id) {
+    return repository.findById(id)
+        .map(mapper::toDto)
+        .orElseThrow(() -> new ResourceNotFoundException("Profile not found: " + id));
+}
+
+// Optional — for internal logic where absence is valid
+public Optional<UserDto> findByEmail(String email) {
+    return repository.findByEmail(email).map(mapper::toDto);
 }
 ```
-

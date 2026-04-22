@@ -8,7 +8,7 @@ Authoring conventions: see [`CLAUDE.md`](CLAUDE.md).
 
 ```
 skills/
-├── database/       — schema migrations, DB Docker setup, SQL style
+├── database/       — DB infrastructure (Docker Compose setup)
 ├── design/         — language-agnostic API/UX design (REST conventions, pagination, error formats)
 ├── gradle/         — build configuration (build.gradle.kts, plugins, dependencies)
 ├── spring-boot/    — Spring Boot runtime patterns (layered architecture, DI, JPA, security)
@@ -38,29 +38,14 @@ Skills are copied to `<project-path>/.claude/skills/<skill-name>/`. Claude Code 
 ## Skills catalog
 
 - **database/**
-  - `liquibase-migrations`
   - `postgresql-docker`
 - **design/**
-  - `api-security`
-  - `dto-conventions`
-  - `error-response-format`
-  - `lookup-endpoints`
-  - `pagination-sorting`
-  - `rest-api-design`
+  - [`rest-api-design`](#rest-api-design)
 - **gradle/**
   - [`spring-boot-gradle-setup`](#spring-boot-gradle-setup)
 - **spring-boot/**
-  - `dto-implementation`
-  - `exception-handling`
-  - `logging-conventions`
-  - `lookup-implementation`
+  - [`spring-boot-backend`](#spring-boot-backend)
   - `new-endpoint-checklist`
-  - `pagination-filtering`
-  - `patch-implementation`
-  - `spring-data-jpa`
-  - `spring-layered-arch`
-  - `spring-security`
-  - `swagger-docs`
 - **ui/**
   - `antd-patterns`
   - `react-component-patterns`
@@ -109,3 +94,78 @@ Configures the Gradle build of a single-module Spring Boot 3.5+ application (Kot
 | SaaS API with self-issued auth (nano-crm style) | `rest-api` + `persistence` + `security-jjwt` |
 
 **Tip:** vague prompts like "set up the build" may load only `SKILL.md` and produce a minimal skeleton. Name the concerns explicitly — or pass a composition directly: *"compose rest-api + persistence + testing"*.
+
+---
+
+### `spring-boot-backend`
+
+Category: `spring-boot/`
+
+Implements and maintains Spring Boot 3.5+ backend runtime code — layered architecture, services, JPA entities, REST controllers, DTOs, exceptions, pagination, security, logging, and Liquibase migrations. Base covers cross-cutting patterns (layered arch, DI, adapter pattern, auth, transactions, entity design, idempotent delete). References add concern-specific implementation detail.
+
+#### References
+
+| File | Scope |
+|---|---|
+| `dto.md` | DTO class structure, Lombok per type, Bean Validation, `@Schema`, MapStruct mapper |
+| `jpa.md` | Repository naming, With-suffix eager loading, `getReferenceById`, datasource/HikariCP |
+| `exceptions.md` | Dedicated exceptions, `GlobalExceptionHandler`, `ErrorDto`, Exception-vs-Optional |
+| `pagination.md` | `PagedResult`/`PagedResponse`, `SortUtil`, `@ValidSort`, Specifications, Filter objects |
+| `patch.md` | `Patchable`, `@NullOrNotBlank`, `@NotEmptyPatch`, MapStruct `@BeanMapping` |
+| `lookup.md` | Large/small lookup endpoints, `X-Total-Count` header |
+| `security-oauth2.md` | Dual `SecurityFilterChain`, OAuth2 Resource Server (Keycloak), CORS |
+| `security-jjwt.md` | Dual `SecurityFilterChain`, self-issued JWTs (JJWT), Bucket4j, login-attempt |
+| `logging.md` | `key=value` format, verb tenses, PII via `@ToString` |
+| `swagger.md` | `@Operation` summary/description rules, `@ApiResponse` sparing use |
+| `migrations.md` | Liquibase formatted SQL, SQL Style Guide, rollback, test data contexts |
+
+#### Example prompts
+
+| Prompt | Loads |
+|---|---|
+| "Add a REST endpoint for Invoice entity with pagination and filtering." | base + `dto` + `jpa` + `pagination` + `exceptions` + `swagger` + `migrations` |
+| "Implement PATCH for the Profile entity." | base + `dto` + `patch` |
+| "Add a lookup endpoint for coaches." | base + `lookup` |
+| "Set up exception handling for this service." | base + `exceptions` |
+| "Add login-attempt protection and rate limiting." | base + `security-jjwt` |
+
+#### Typical compositions
+
+| Task | References |
+|---|---|
+| New entity + full CRUD endpoint | `dto` + `jpa` + `migrations` + `pagination` + `exceptions` + `swagger` |
+| PATCH endpoint | `dto` + `patch` + `exceptions` |
+| Lookup endpoint | `dto` + `lookup` |
+| OAuth2 security setup (ms-profile style) | `security-oauth2` |
+| Self-issued JWT security (nano-crm style) | `security-jjwt` |
+| Logging review / adding logs | `logging` |
+
+**Pairs with:** `spring-boot-gradle-setup` (build config) and `rest-api-design` (API design contracts).
+
+---
+
+### `rest-api-design`
+
+Category: `design/`
+
+Defines REST API contracts — URI conventions, HTTP verbs, status codes, content negotiation, DTO naming, pagination format, error responses, and security patterns. Language-agnostic design layer; pairs with `spring-boot-backend` for Spring implementation detail.
+
+#### References
+
+| File | Scope |
+|---|---|
+| `dto-conventions.md` | Noun-first naming, DTO types per operation, JSON examples |
+| `pagination-sorting.md` | Query parameters, JSON:API sort format, `PagedResponse` shape, stable sorting |
+| `error-format.md` | Error codes, validation error shape, scenario-to-HTTP mapping |
+| `lookup-endpoints.md` | Strategy by data volume, `X-Total-Count`, frontend UX pattern |
+| `api-security.md` | Stateless auth, HttpOnly cookies, rate limiting, brute-force protection |
+
+#### Example prompts
+
+| Prompt | Loads |
+|---|---|
+| "Design the DTO structure for an Invoice endpoint." | base + `dto-conventions` |
+| "What format should pagination use?" | base + `pagination-sorting` |
+| "How should error responses look?" | base + `error-format` |
+| "Design a lookup endpoint for athletes." | base + `lookup-endpoints` |
+| "What security patterns should the auth endpoints use?" | base + `api-security` |
