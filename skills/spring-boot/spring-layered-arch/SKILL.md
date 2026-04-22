@@ -173,6 +173,28 @@ public void deletePaymentMethod(UUID coachId, UUID paymentMethodId) {
 }
 ```
 
+## Datasource & Connection Pool
+
+```yaml
+# application-dev.yml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5632/app-db?user=app-db&password=app-db
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000     # 30s
+      idle-timeout: 600000          # 10min
+      max-lifetime: 1800000         # 30min
+```
+
+| Profile | Database host | Pool size |
+|---------|--------------|-----------|
+| dev (local) | `localhost:{port}` | 10 |
+| test/qa (k8s) | `postgresql.{namespace}.svc.cluster.local:5432` | 20 |
+| prod (k8s) | ENV variable `SPRING_DATASOURCE_URL` | 20+ |
+
+Production: all secrets via ENV variables (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`). No custom ENV names — use Spring Boot naming convention.
+
 ## Method Ordering
 
 - **Controllers**: by HTTP verb (GET, POST, PUT, PATCH, DELETE)
