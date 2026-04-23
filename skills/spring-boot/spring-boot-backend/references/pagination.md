@@ -12,7 +12,7 @@
 public record PagedResult<T>(
     List<T> content,
     int page,
-    int perPage,
+    int limit,
     long total,
     int totalPages
 ) {
@@ -40,7 +40,7 @@ public class PagedResponse<T> {
     @Data
     public static class PaginationMeta {
         private int page;
-        private int perPage;
+        private int limit;
         private long total;
         private int totalPages;
     }
@@ -50,7 +50,7 @@ public class PagedResponse<T> {
         response.data = result.content();
         PaginationMeta meta = new PaginationMeta();
         meta.page = result.page();
-        meta.perPage = result.perPage();
+        meta.limit = result.limit();
         meta.total = result.total();
         meta.totalPages = result.totalPages();
         response.pagination = meta;

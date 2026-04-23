@@ -79,8 +79,12 @@ Always use `@Valid` on request bodies and query params:
 
 ```java
 @PostMapping
-@ResponseStatus(HttpStatus.CREATED)
-public CustomerDto create(@Valid @RequestBody CustomerCreateDto dto) { ... }
+public ResponseEntity<CustomerDto> create(@Valid @RequestBody CustomerCreateDto dto) {
+    CustomerDto created = customerService.create(userId, dto);
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .header("Location", "/api/v1/customers/" + created.getId())
+        .body(created);
+}
 
 @GetMapping
 public ResponseEntity<PagedResponse<CustomerListItemDto>> list(

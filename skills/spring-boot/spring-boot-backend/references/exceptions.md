@@ -44,7 +44,10 @@ public class GlobalExceptionHandler {
     public ErrorDto handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> details = new LinkedHashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
-            String field = error instanceof FieldError fe ? fe.getField() : error.getObjectName();
+            String raw = error instanceof FieldError fe ? fe.getField() : error.getObjectName();
+            // class-level constraints bind to the simple class name (e.g. "customerPatchDto") —
+            // strip "Dto" suffix so the key matches the @Schema(name = "CustomerPatch") contract
+            String field = raw.endsWith("Dto") ? raw.substring(0, raw.length() - 3) : raw;
             details.putIfAbsent(field, error.getDefaultMessage());
         });
         return ErrorDto.builder()
@@ -83,6 +86,18 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorDto handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return ErrorDto.builder().code("BAD_REQUEST").message("Invalid parameter: " + ex.getName()).build();
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    @ResponseStatus(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+    public ErrorDto handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+        return ErrorDto.builder().code("UNSUPPORTED_MEDIA_TYPE").message("Unsupported Content-Type").build();
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    @ResponseStatus(HttpStatus.NOT_ACCEPTABLE)
+    public ErrorDto handleNotAcceptable(HttpMediaTypeNotAcceptableException ex) {
+        return ErrorDto.builder().code("NOT_ACCEPTABLE").message("Unsupported Accept header").build();
     }
 
     @ExceptionHandler(Exception.class)

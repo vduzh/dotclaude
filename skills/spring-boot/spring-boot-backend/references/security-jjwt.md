@@ -56,7 +56,7 @@ public CorsConfigurationSource corsConfigurationSource() {
     config.setAllowedOrigins(List.of(corsAllowedOrigins));
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
     config.setAllowedHeaders(List.of("Content-Type", "Authorization", "Accept"));
-    config.setExposedHeaders(List.of("Authorization", "X-Total-Count"));
+    config.setExposedHeaders(List.of("Authorization", "X-Total-Count", "ETag"));
     config.setAllowCredentials(true);
     config.setMaxAge(3600L);
 
@@ -126,7 +126,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
         String key = RequestUtils.getClientIP(request) + ":" + endpoint;
         Bucket bucket = buckets.get(key, k -> createBucket(resolveRpm(endpoint)));
-        if (!bucket.tryConsume(1)) throw new RateLimitExceededException("Rate limit exceeded");
+        ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+        if (!probe.isConsumed()) {
+            long retryAfter = TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForRefill());
+            throw new RateLimitExceededException("Too many requests. Please try again later.", Math.max(1, retryAfter));
+        }
         chain.doFilter(request, response);
     }
 
@@ -190,6 +194,47 @@ public class RequestUtils {
 }
 ```
 
+Trust `X-Forwarded-For` and `X-Real-IP` only when the request arrives from a known proxy (nginx, ELB). Accepting these headers from arbitrary clients allows IP spoofing and rate-limit bypass. Configure the reverse proxy to always overwrite — never forward — these headers.
+
+## Security exception classes
+
+Both 429 exceptions carry `retryAfterSeconds` — the handler uses it for the `Retry-After` response header.
+
+```java
+public class RateLimitExceededException extends RuntimeException {
+    private final long retryAfterSeconds;
+
+    public RateLimitExceededException(String message, long retryAfterSeconds) {
+        super(message);
+        this.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    public long getRetryAfterSeconds() { return retryAfterSeconds; }
+}
+
+public class AccountTemporarilyLockedException extends RuntimeException {
+    private final long retryAfterSeconds;
+
+    public AccountTemporarilyLockedException(String message, long retryAfterSeconds) {
+        super(message);
+        this.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    public long getRetryAfterSeconds() { return retryAfterSeconds; }
+}
+```
+
+`AccountTemporarilyLockedException` is thrown by the auth controller using the configured block duration:
+
+```java
+if (loginAttemptService.isBlocked(clientIp, email)) {
+    throw new AccountTemporarilyLockedException(
+        "Too many failed login attempts. Please try again later.",
+        loginAttemptProperties.getBlockDurationMinutes() * 60L
+    );
+}
+```
+
 ## Security exceptions in GlobalExceptionHandler
 
 ```java
@@ -206,9 +251,17 @@ public ErrorDto handleAccessDenied(AccessDeniedException ex) {
 }
 
 @ExceptionHandler(RateLimitExceededException.class)
-@ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
-public ErrorDto handleRateLimit(RateLimitExceededException ex) {
-    return ErrorDto.builder().code("TOO_MANY_REQUESTS").message(ex.getMessage()).build();
+public ResponseEntity<ErrorDto> handleRateLimit(RateLimitExceededException ex) {
+    return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+        .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+        .body(ErrorDto.builder().code("TOO_MANY_REQUESTS").message(ex.getMessage()).build());
+}
+
+@ExceptionHandler(AccountTemporarilyLockedException.class)
+public ResponseEntity<ErrorDto> handleAccountLocked(AccountTemporarilyLockedException ex) {
+    return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+        .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+        .body(ErrorDto.builder().code("ACCOUNT_TEMPORARILY_LOCKED").message(ex.getMessage()).build());
 }
 ```
 
