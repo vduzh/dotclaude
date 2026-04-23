@@ -47,7 +47,30 @@ PUT /api/v1/customers/550e8400-...
 If-Match: "3a1b7f"
 
 { ... }
+
+→ 200 OK
+ETag: "7c2d9e"
+
+{ ... updated resource ... }
 ```
+
+Same flow for PATCH — example of a mismatch:
+
+```
+PATCH /api/v1/customers/550e8400-...
+If-Match: "3a1b7f"
+
+{ "lastName": "Smith" }
+
+→ 412 Precondition Failed
+
+{
+  "code": "PRECONDITION_FAILED",
+  "message": "Resource was modified; refresh and retry"
+}
+```
+
+After a successful update, the response always includes a new `ETag` reflecting the new version.
 
 Server behavior when the endpoint enforces optimistic concurrency:
 

@@ -1,10 +1,11 @@
 ---
 name: rest-api-design
 description: >
-  Design stack-agnostic REST API contracts — URI conventions, HTTP
-  verbs, status codes, content negotiation, DTO naming, pagination, error
-  responses, and security patterns. Use this skill when designing or reviewing
-  API endpoints, request/response shapes, error formats, or security behavior.
+  Design stack-agnostic REST API contracts — the HTTP-observable behavior
+  that both backend and frontend implementations rely on. Use this skill
+  when designing new endpoints, reviewing existing API contracts,
+  establishing conventions for a new project, or deciding how a resource
+  should be exposed on the wire.
 ---
 
 # REST API Design Conventions
@@ -53,6 +54,7 @@ Out of specification (define when a concrete case arises): bulk operations, long
 | 412 Precondition Failed | ETag mismatch on concurrent update |
 | 428 Precondition Required | `If-Match` header missing when required |
 | 429 Too Many Requests | Rate limit exceeded |
+| 500 Internal Server Error | Unexpected server error |
 
 ## Content negotiation
 
@@ -119,7 +121,8 @@ GET /api/v1/customers?page=1&limit=20&search=john&sort=-createdAt
 
 ```
 POST /api/v1/customers
-→ 201 Created  (with created resource including generated id)
+→ 201 Created  (body contains the created resource)
+Location: /api/v1/customers/550e8400-e29b-41d4-a716-446655440001
 ```
 
 ## PUT — full replacement
@@ -156,7 +159,7 @@ Load the reference file for each area the current task touches:
   Load when designing JSON request/response shapes.
 - `references/dto-conventions.md` — DTO naming (noun-first), DTO types per operation, JSON examples.
   Load when designing request/response shapes or DTO naming.
-- `references/pagination-sorting.md` — query parameters, JSON:API sort format, paged response envelope, empty-result shape, filter strategy, stable sorting.
+- `references/pagination-sorting.md` — query parameters, JSON:API sort format, paged response envelope, empty-result shape, stable sorting.
   Load when designing list endpoints.
 - `references/idempotency-concurrency.md` — `Idempotency-Key` for POST retries, `ETag`/`If-Match` optimistic concurrency, 412/428 semantics.
   Load when designing retry-safe writes or concurrent edits.

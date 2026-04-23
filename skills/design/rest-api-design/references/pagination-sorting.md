@@ -12,6 +12,8 @@ Mandatory for all list endpoints.
 | `search` | string | — | Case-insensitive partial match across multiple fields |
 | Filter params | varies | — | Entity-specific filters (`status`, `countryId`, etc.) |
 
+Values outside the documented ranges (e.g. `limit=0`, `limit=200`, `page=0`) → `400 VALIDATION_ERROR`.
+
 ## JSON:API sort format
 
 - Ascending: `sort=name`
@@ -31,7 +33,7 @@ GET /api/v1/customers?page=2&limit=50&search=john&sort=name,-createdAt
   ],
   "pagination": {
     "page": 1,
-    "perPage": 20,
+    "limit": 20,
     "total": 156,
     "totalPages": 8
   }
@@ -45,13 +47,8 @@ GET /api/v1/customers?page=2&limit=50&search=john&sort=name,-createdAt
 Return `[]` with zero totals — never `404`:
 
 ```json
-{ "data": [], "pagination": { "page": 1, "perPage": 20, "total": 0, "totalPages": 0 } }
+{ "data": [], "pagination": { "page": 1, "limit": 20, "total": 0, "totalPages": 0 } }
 ```
-
-## Filter strategy
-
-- 1-3 filter parameters: individual query params (`?search=john&countryId=...`)
-- 4+ filter parameters: group into a filter object server-side
 
 ## Stable sorting
 

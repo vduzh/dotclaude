@@ -49,8 +49,20 @@ Standard error shape for all REST API error responses.
 ```
 
 - Field-level errors keyed by field name
-- Class-level errors (e.g. "at least one field required") keyed by object name
+- Class-level errors (e.g. "at least one field required") keyed by the request body schema name in camelCase
 - One error per field — first encountered wins
+
+Class-level example — empty PATCH body:
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Request validation failed",
+  "details": {
+    "customerPatch": "At least one field required"
+  }
+}
+```
 
 ## Validation rule catalog
 

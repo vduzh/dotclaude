@@ -20,6 +20,7 @@ Acronyms follow the lowercase-after-first-letter rule: `userId`, `apiKey`, `http
 | `date-time` | string — ISO 8601 UTC with `Z` | `"2026-04-23T10:30:00Z"` |
 | `date` | string — ISO 8601 calendar date | `"2026-04-23"` |
 | `email` | string — RFC 5322 | `"john@example.com"` |
+| `phone` | string — E.164 | `"+1234567890"` |
 | `enum` | string — `UPPER_SNAKE_CASE` | `"ACTIVE"`, `"PENDING_APPROVAL"` |
 
 **IDs** are always `uuid`. No sequential numeric IDs on the wire.

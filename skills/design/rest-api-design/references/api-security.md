@@ -6,7 +6,7 @@ Stateless authentication, token storage, rate limiting, and brute-force protecti
 
 REST APIs must be stateless:
 - No server-side sessions, no session cookies
-- CSRF protection disabled (no session to hijack)
+- No server-side CSRF tokens — browser-level CSRF protection comes from `SameSite=Lax` on the cookie (see Token storage below)
 - Each request carries its own credentials (token)
 
 ## Token storage: HttpOnly cookies
@@ -38,7 +38,7 @@ Protect public endpoints (login, register, forgot-password) from abuse.
 1.2.3.4 + /register → 3 req/min
 ```
 
-**Response:** `429 Too Many Requests` + `{"code": "TOO_MANY_REQUESTS", ...}`
+**Response:** `429 Too Many Requests` with `Retry-After: <seconds>` header + `{"code": "TOO_MANY_REQUESTS", ...}` body.
 
 **Client IP detection** (behind proxies — check in order):
 1. `X-Forwarded-For` first IP
@@ -56,9 +56,19 @@ Protect public endpoints (login, register, forgot-password) from abuse.
 
 IP:email key (not just email) prevents Account Lockout Attack — attacker can only block their own IP's access, not the victim's access from their IP.
 
-**Response:** `429 Too Many Requests` + `{"code": "ACCOUNT_TEMPORARILY_LOCKED", ...}`
+**Response:** `429 Too Many Requests` with `Retry-After: <seconds until lockout expires>` header + `{"code": "ACCOUNT_TEMPORARILY_LOCKED", ...}` body.
 
 **Flow:** check if blocked → attempt auth → on failure increment counter → on success clear counter.
+
+## CORS — exposing custom headers
+
+Browsers block JavaScript from reading response headers beyond a short safelist unless the server exposes them via CORS:
+
+```
+Access-Control-Expose-Headers: ETag, X-Total-Count
+```
+
+Required for any custom header the client reads — at minimum `ETag` (concurrency) and `X-Total-Count` (lookup pagination). Add any other custom headers the API emits to this list.
 
 ## Endpoint classification
 
