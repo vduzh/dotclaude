@@ -18,10 +18,11 @@ Name DTOs as `{Entity}{Operation}` — noun first:
 | `XxxCreate` | POST body | All required fields for creation |
 | `XxxUpdate` | PUT body | All fields required (full replacement) |
 | `XxxPatch` | PATCH body | All fields optional, at least one required |
-| `Xxx` | Response (single) | Full resource representation |
+| `Xxx` | Response (single) | All fields, no associations — default representation |
+| `XxxSummary` | Response (single, summary) | Reduced field set — used when endpoint offers `.summary+json` |
+| `XxxFull` | Response (single, full) | Default + expanded associations — used when endpoint offers `.full+json` |
 | `XxxListItem` | Response (list) | Subset of fields for table/list view |
 | `XxxLookup` | Response (dropdown) | Minimal fields (id + display name) |
-| `XxxSearchParams` | Query params | Pagination, sorting, filters |
 
 ## JSON examples
 
