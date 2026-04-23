@@ -52,4 +52,4 @@ Return `[]` with zero totals — never `404`:
 
 ## Stable sorting
 
-Always append `id` as the final sort field — prevents records from shifting between pages when multiple records share the same sort value.
+The server always appends `id` as the final tiebreaker regardless of the client-specified `sort` — this prevents records from shifting between pages when multiple records share the same sort value.

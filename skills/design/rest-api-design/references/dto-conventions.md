@@ -13,12 +13,12 @@ Name DTOs as `{Entity}{Operation}` — noun first:
 
 ## DTO types per operation
 
-| DTO | HTTP | Purpose |
+| DTO | Used for | Purpose |
 |-----|------|---------|
 | `XxxCreate` | POST body | All required fields for creation |
 | `XxxUpdate` | PUT body | All fields required (full replacement) |
 | `XxxPatch` | PATCH body | All fields optional, at least one required |
-| `Xxx` | Response (single) | All fields, no associations — default representation |
+| `Xxx` | Response (single) — GET `/{id}`, POST 201, PUT 200, PATCH 200 | All fields, no associations — default representation |
 | `XxxSummary` | Response (single, summary) | Reduced field set — used when endpoint offers `.summary+json` |
 | `XxxFull` | Response (single, full) | Default + expanded associations — used when endpoint offers `.full+json` |
 | `XxxListItem` | Response (list) | Subset of fields for table/list view |
@@ -69,6 +69,7 @@ Only provided fields updated.
   "firstName": "John",
   "lastName": "Doe",
   "email": "john@example.com",
+  "phone": "+1234567890",
   "status": "ACTIVE",
   "createdAt": "2025-01-15T10:30:00Z",
   "updatedAt": "2025-03-02T14:05:00Z"
@@ -99,6 +100,7 @@ Served on `Accept: application/vnd.api.customer.full+json`. Default fields plus 
   "firstName": "John",
   "lastName": "Doe",
   "email": "john@example.com",
+  "phone": "+1234567890",
   "status": "ACTIVE",
   "createdAt": "2025-01-15T10:30:00Z",
   "updatedAt": "2025-03-02T14:05:00Z",

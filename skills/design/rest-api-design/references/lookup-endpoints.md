@@ -9,6 +9,8 @@ Accept: application/vnd.api.customer.lookup+json
 
 Lookup endpoints return a flat array `T[]` — not a paginated wrapper.
 
+**Default sort:** by display name ascending, unless the client specifies an explicit `sort` parameter.
+
 ## Strategy by data volume
 
 | Dataset | Expected volume | Strategy | X-Total-Count |

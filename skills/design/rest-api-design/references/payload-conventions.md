@@ -21,6 +21,7 @@ Acronyms follow the lowercase-after-first-letter rule: `userId`, `apiKey`, `http
 | `date` | string — ISO 8601 calendar date | `"2026-04-23"` |
 | `email` | string — RFC 5322 | `"john@example.com"` |
 | `phone` | string — E.164 | `"+1234567890"` |
+| `money` | string — decimal | `"19.99"`, `"0.50"` |
 | `enum` | string — `UPPER_SNAKE_CASE` | `"ACTIVE"`, `"PENDING_APPROVAL"` |
 
 **IDs** are always `uuid`. No sequential numeric IDs on the wire.
@@ -28,6 +29,12 @@ Acronyms follow the lowercase-after-first-letter rule: `userId`, `apiKey`, `http
 **Date-time** is always UTC; the client converts to local timezone for display. Millisecond precision (`...:30:00.123Z`) is allowed when the precision matters.
 
 **Enums** are closed per API version. New values may be added in minor versions; removals only in major versions. Clients must handle unknown values defensively — never crash on an unexpected value.
+
+**Money** uses `string` (decimal form), not `number` — strings avoid floating-point precision loss and scale to any amount. Always paired with a sibling `currencyCode` field (ISO 4217 uppercase, e.g., `"USD"`):
+
+```json
+{ "amount": "1999.99", "currencyCode": "USD" }
+```
 
 ## Null vs absent
 

@@ -41,9 +41,9 @@ Protect public endpoints (login, register, forgot-password) from abuse.
 **Response:** `429 Too Many Requests` with `Retry-After: <seconds>` header + `{"code": "TOO_MANY_REQUESTS", ...}` body.
 
 **Client IP detection** (behind proxies — check in order):
-1. `X-Forwarded-For` first IP
-2. `X-Real-IP`
-3. Remote peer address (socket-level client IP)
+1. `X-Forwarded-For` first IP — **trust only when the request arrives from a known proxy**; accepting this header from arbitrary clients allows IP spoofing and rate-limit bypass.
+2. `X-Real-IP` — same trust constraint as `X-Forwarded-For`.
+3. Remote peer address (socket-level client IP) — always trustworthy.
 
 ## Brute-force protection
 
@@ -60,15 +60,23 @@ IP:email key (not just email) prevents Account Lockout Attack — attacker can o
 
 **Flow:** check if blocked → attempt auth → on failure increment counter → on success clear counter.
 
-## CORS — exposing custom headers
+## CORS — cookie-based cross-origin auth
 
-Browsers block JavaScript from reading response headers beyond a short safelist unless the server exposes them via CORS:
+Cookie-based auth across origins requires three CORS headers on every response:
 
 ```
+Access-Control-Allow-Origin: https://app.example.com
+Access-Control-Allow-Credentials: true
 Access-Control-Expose-Headers: ETag, X-Total-Count
 ```
 
-Required for any custom header the client reads — at minimum `ETag` (concurrency) and `X-Total-Count` (lookup pagination). Add any other custom headers the API emits to this list.
+| Header | Purpose |
+|--------|---------|
+| `Access-Control-Allow-Origin` | Must be a **specific origin** — `*` is incompatible with credentials. Multiple origins require per-request matching against an allow-list. |
+| `Access-Control-Allow-Credentials: true` | Enables cookie transmission across origins; without it, the browser drops the cookie from the request. |
+| `Access-Control-Expose-Headers` | Custom response headers the client reads — at minimum `ETag` (concurrency) and `X-Total-Count` (lookup pagination); add any other custom headers the API emits. |
+
+Preflight (`OPTIONS`) must be handled for non-simple methods (PUT / PATCH / DELETE, or POST with `Content-Type: application/json`) — respond with the same allow-origin / credentials headers plus `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers`.
 
 ## Endpoint classification
 

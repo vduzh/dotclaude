@@ -76,6 +76,7 @@ Server behavior when the endpoint enforces optimistic concurrency:
 
 | Situation | Response |
 |-----------|----------|
+| Target resource does not exist | `404 Not Found` with `NOT_FOUND` code — existence is checked before the ETag |
 | `If-Match` matches the current resource version | Apply update; return a new `ETag` in the response |
 | `If-Match` does not match (resource changed) | `412 Precondition Failed` with `PRECONDITION_FAILED` code |
 | `If-Match` absent on a mandatory endpoint | `428 Precondition Required` with `PRECONDITION_REQUIRED` code |

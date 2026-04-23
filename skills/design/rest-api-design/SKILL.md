@@ -52,6 +52,7 @@ Out of specification (define when a concrete case arises): bulk operations, long
 | 406 Not Acceptable | Unsupported Accept header |
 | 409 Conflict | Business conflict, duplicate, constraint violation |
 | 412 Precondition Failed | ETag mismatch on concurrent update |
+| 415 Unsupported Media Type | Request `Content-Type` not supported |
 | 428 Precondition Required | `If-Match` header missing when required |
 | 429 Too Many Requests | Rate limit exceeded |
 | 500 Internal Server Error | Unexpected server error |
@@ -79,6 +80,8 @@ Vendor media types are **optional** — introduce them only when an endpoint off
 
 Unsupported `Accept` header → `406 Not Acceptable`.
 
+Request bodies (POST / PUT / PATCH) require `Content-Type: application/json`. Unsupported `Content-Type` → `415 Unsupported Media Type`.
+
 ## URI conventions
 
 ### Naming
@@ -102,6 +105,12 @@ GET /api/v1/customers/by-username/{username}
 ```
 
 Avoid `/customers/email/{email}` — reads as a nested resource, not a lookup.
+
+If the identifier may contain URL-reserved characters (`+`, `@`, `/` in emails; `#` in tags; etc.), use a query parameter instead to avoid path-decoding ambiguity across frameworks:
+
+```
+GET /api/v1/customers?email=john%2Bwork@example.com
+```
 
 ### Query parameters
 
@@ -136,7 +145,7 @@ PUT /api/v1/customers/550e8400-...
 
 ## PATCH — partial update
 
-Only provided (non-null) fields are updated. Absent/null fields are ignored.
+Only non-null provided fields are updated — `null` and absent fields are treated identically: ignored.
 
 ```
 PATCH /api/v1/customers/550e8400-...

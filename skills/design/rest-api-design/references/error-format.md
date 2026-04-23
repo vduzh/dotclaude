@@ -84,6 +84,7 @@ Concrete rules that produce `VALIDATION_ERROR`:
 { "code": "NOT_FOUND", "message": "Customer not found with id: 550e8400-..." }
 { "code": "CONFLICT", "message": "User with this email already exists" }
 { "code": "BAD_REQUEST", "message": "Invalid parameter: id" }
+{ "code": "UNAUTHORIZED", "message": "Authentication required" }
 { "code": "INTERNAL_ERROR", "message": "Internal server error" }
 ```
 
