@@ -94,6 +94,9 @@ public interface ProfileMapper {
 
     // PATCH — only non-null fields update
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
     void patchEntityFromDto(ProfilePatchDto dto, @MappingTarget ProfileEntity entity);
 }
 ```

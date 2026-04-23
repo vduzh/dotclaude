@@ -88,6 +88,22 @@ public ResponseEntity<Void> delete(@PathVariable UUID id) { ... }
 public ProfileDto findById(@PathVariable UUID id) { ... }
 ```
 
+## Security exceptions in GlobalExceptionHandler
+
+```java
+@ExceptionHandler(AuthenticationException.class)
+@ResponseStatus(HttpStatus.UNAUTHORIZED)
+public ErrorDto handleAuth(AuthenticationException ex) {
+    return ErrorDto.builder().code("UNAUTHORIZED").message("Authentication required").build();
+}
+
+@ExceptionHandler(AccessDeniedException.class)
+@ResponseStatus(HttpStatus.FORBIDDEN)
+public ErrorDto handleAccessDenied(AccessDeniedException ex) {
+    return ErrorDto.builder().code("FORBIDDEN").message("Access denied").build();
+}
+```
+
 ## YAML config
 
 ```yaml

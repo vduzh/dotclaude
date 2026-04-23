@@ -93,6 +93,7 @@ repositories {
 
 dependencies {
     implementation(platform(libs.springBoot.bom))
+    annotationProcessor(platform(libs.springBoot.bom))
 
     implementation("org.springframework.boot:spring-boot-starter")
 
@@ -117,10 +118,11 @@ tasks.test {
 **Non-negotiable rules:**
 
 1. Use the native BOM via `platform(...)`, not the `io.spring.dependency-management` plugin.
-2. Annotation processor order: Lombok → MapStruct → `lombok-mapstruct-binding`.
-3. Add `-parameters` to the Java compiler args.
-4. Call `useJUnitPlatform()` in `tasks.test`.
-5. Add `org.junit.platform:junit-platform-launcher` to `testRuntimeOnly`.
+2. Apply the BOM to both `implementation` and `annotationProcessor` configurations.
+3. Annotation processor order: Lombok → MapStruct → `lombok-mapstruct-binding`.
+4. Add `-parameters` to the Java compiler args.
+5. Call `useJUnitPlatform()` in `tasks.test`.
+6. Add `org.junit.platform:junit-platform-launcher` to `testRuntimeOnly`.
 
 ## Optional stacks
 

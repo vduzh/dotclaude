@@ -85,12 +85,6 @@ public class GlobalExceptionHandler {
         return ErrorDto.builder().code("BAD_REQUEST").message("Invalid parameter: " + ex.getName()).build();
     }
 
-    @ExceptionHandler(AccessDeniedException.class)
-    @ResponseStatus(HttpStatus.FORBIDDEN)
-    public ErrorDto handleAccessDenied(AccessDeniedException ex) {
-        return ErrorDto.builder().code("FORBIDDEN").message("Access denied").build();
-    }
-
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorDto handleGeneric(Exception ex) {
@@ -100,7 +94,7 @@ public class GlobalExceptionHandler {
 }
 ```
 
-For security-specific exceptions (`AuthenticationException`, `RateLimitExceededException`, etc.), see `references/security-jjwt.md`.
+For security-specific exceptions (`AccessDeniedException`, `AuthenticationException`, `RateLimitExceededException`, etc.), see `references/security-oauth2.md` or `references/security-jjwt.md`.
 
 ## Exception vs Optional
 

@@ -199,6 +199,12 @@ public ErrorDto handleAuth(AuthenticationException ex) {
     return ErrorDto.builder().code("UNAUTHORIZED").message("Invalid credentials").build();
 }
 
+@ExceptionHandler(AccessDeniedException.class)
+@ResponseStatus(HttpStatus.FORBIDDEN)
+public ErrorDto handleAccessDenied(AccessDeniedException ex) {
+    return ErrorDto.builder().code("FORBIDDEN").message("Access denied").build();
+}
+
 @ExceptionHandler(RateLimitExceededException.class)
 @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
 public ErrorDto handleRateLimit(RateLimitExceededException ex) {

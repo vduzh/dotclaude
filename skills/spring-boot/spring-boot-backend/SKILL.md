@@ -12,6 +12,10 @@ description: >
 
 Scope: Spring Boot 3.5+ application runtime code and database migrations.
 
+## Prerequisites
+
+The Gradle build must include: Lombok, MapStruct (with `lombok-mapstruct-binding`), Spring Data JPA, Liquibase, and a JDBC driver. If any are missing, configure them via the `spring-boot-gradle-setup` skill before proceeding.
+
 ## Non-negotiable rules
 
 1. Services accept DTOs from the `dto` package only; never transport-specific objects (HTTP requests, Kafka messages, aggregates).

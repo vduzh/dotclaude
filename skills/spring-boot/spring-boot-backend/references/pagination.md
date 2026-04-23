@@ -166,15 +166,20 @@ public class CustomerSpecification {
 
     // 1-3 params: individual arguments
     public static Specification<Customer> withFilters(String search, UUID countryId) {
-        return Specification.where(searchLike(search)).and(hasCountry(countryId));
+        return Specification.allOf(
+            searchLike(search),
+            hasCountry(countryId)
+        );
     }
 
     // 4+ params: use Filter object
     public static Specification<Customer> withFilters(CustomerFilter filter) {
-        return Specification.where(searchLike(filter.getSearch()))
-            .and(hasCountry(filter.getCountryId()))
-            .and(hasStatus(filter.getStatus()))
-            .and(hasType(filter.getType()));
+        return Specification.allOf(
+            searchLike(filter.getSearch()),
+            hasCountry(filter.getCountryId()),
+            hasStatus(filter.getStatus()),
+            hasType(filter.getType())
+        );
     }
 
     private static Specification<Customer> searchLike(String search) {

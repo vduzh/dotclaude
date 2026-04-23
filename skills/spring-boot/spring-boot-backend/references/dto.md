@@ -55,13 +55,22 @@ public interface CustomerMapper {
     CustomerDto toDto(CustomerEntity entity);
     CustomerListItemDto toListItemDto(CustomerEntity entity);
     CustomerLookupDto toLookupDto(CustomerEntity entity);
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
     CustomerEntity toEntity(CustomerCreateDto dto);
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
     void updateEntityFromDto(CustomerUpdateDto dto, @MappingTarget CustomerEntity entity);
 }
 ```
 
 - Set `componentModel = "spring"` — inject via constructor
 - Do NOT set `nullValuePropertyMappingStrategy` at `@Mapper` level — use `@BeanMapping` only on patch methods (see `references/patch.md`)
+- Add `@Mapping(target = X, ignore = true)` on every write method (`toEntity`, `updateEntityFromDto`, `patchEntityFromDto`) for system-managed fields: `id` (service assigns via `UUID.randomUUID()`), `createdAt`/`updatedAt` (managed by `@EnableJpaAuditing`). Silences unmapped-target warnings.
 - Add `patchEntityFromDto` with `@BeanMapping(nullValuePropertyMappingStrategy = IGNORE)` when PATCH is needed
 
 ## Controller: @Valid
