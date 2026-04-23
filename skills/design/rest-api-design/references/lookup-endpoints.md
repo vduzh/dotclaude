@@ -22,7 +22,7 @@ Lookup endpoints return a flat array `T[]` — not a paginated wrapper.
 
 ## Large lookup (server-side search)
 
-Query parameters: `search` (case-insensitive partial match), `limit` (default 50, max 100).
+Query parameters: `search` (case-insensitive partial match), `limit` (default 50, max 100 — differs from pagination defaults).
 Response header: `X-Total-Count` — total matching records.
 
 ```
@@ -36,6 +36,8 @@ X-Total-Count: 150
   { "id": "550e8401-...", "name": "John Smith" }
 ]
 ```
+
+When `search` is absent, return the first `limit` records sorted by display name. An empty search is valid — do not return `400`.
 
 ## Small lookup (load all)
 

@@ -176,5 +176,5 @@ Load the reference file for each area the current task touches:
   Load when designing error responses.
 - `references/lookup-endpoints.md` — strategy by data volume, `X-Total-Count`, frontend UX pattern.
   Load when designing dropdown/autocomplete endpoints.
-- `references/api-security.md` — stateless auth, cookie-based tokens, rate limiting, brute-force protection.
+- `references/api-security.md` — stateless auth, cookie-based tokens, rate limiting, brute-force protection, CORS.
   Load when designing authentication or security behavior.

@@ -71,8 +71,8 @@ Only provided fields updated.
   "email": "john@example.com",
   "phone": "+1234567890",
   "status": "ACTIVE",
-  "createdAt": "2025-01-15T10:30:00Z",
-  "updatedAt": "2025-03-02T14:05:00Z"
+  "createdAt": "2026-01-15T10:30:00Z",
+  "updatedAt": "2026-03-02T14:05:00Z"
 }
 ```
 
@@ -102,8 +102,8 @@ Served on `Accept: application/vnd.api.customer.full+json`. Default fields plus 
   "email": "john@example.com",
   "phone": "+1234567890",
   "status": "ACTIVE",
-  "createdAt": "2025-01-15T10:30:00Z",
-  "updatedAt": "2025-03-02T14:05:00Z",
+  "createdAt": "2026-01-15T10:30:00Z",
+  "updatedAt": "2026-03-02T14:05:00Z",
   "addresses": [
     {
       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",

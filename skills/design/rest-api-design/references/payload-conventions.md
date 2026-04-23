@@ -46,9 +46,7 @@ Acronyms follow the lowercase-after-first-letter rule: `userId`, `apiKey`, `http
 | PATCH (partial update) | "Don't touch this field" | "Don't touch this field" |
 | Response | Explicit null | Field omitted (servers may omit null optionals) |
 
-**Key consequence for PATCH:** there is no way to explicitly set a field to `null` via PATCH — `null` means "ignore". To null-out a field, use `PUT` (full replacement).
-
-This follows JSON Merge Patch semantics (RFC 7396).
+**Key consequence for PATCH:** `null` and absent fields are treated identically — both mean "do not touch this field". There is no way to explicitly set a field to `null` via PATCH; use `PUT` (full replacement) for that.
 
 ## Audit fields
 

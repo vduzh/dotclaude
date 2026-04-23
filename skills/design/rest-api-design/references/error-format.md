@@ -27,6 +27,7 @@ Standard error shape for all REST API error responses.
 | `NOT_FOUND` | 404 | Resource not found |
 | `CONFLICT` | 409 | Business conflict or DB constraint violation |
 | `PRECONDITION_FAILED` | 412 | `If-Match` ETag did not match current resource version |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | Request `Content-Type` not supported |
 | `PRECONDITION_REQUIRED` | 428 | `If-Match` header missing when required |
 | `FORBIDDEN` | 403 | Access denied |
 | `UNAUTHORIZED` | 401 | Missing or invalid authentication |
@@ -88,6 +89,22 @@ Concrete rules that produce `VALIDATION_ERROR`:
 { "code": "INTERNAL_ERROR", "message": "Internal server error" }
 ```
 
+Both `429` codes require a `Retry-After: <seconds>` response header indicating when the client may retry:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60
+
+{ "code": "TOO_MANY_REQUESTS", "message": "Rate limit exceeded" }
+```
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 900
+
+{ "code": "ACCOUNT_TEMPORARILY_LOCKED", "message": "Account temporarily locked" }
+```
+
 ## Scenario mapping
 
 | Scenario | HTTP | Code |
@@ -96,12 +113,14 @@ Concrete rules that produce `VALIDATION_ERROR`:
 | Invalid path variable (bad UUID, etc.) | 400 | `BAD_REQUEST` |
 | Business input error (FK not found) | 400 | `BAD_REQUEST` |
 | Resource not found | 404 | `NOT_FOUND` |
+| Missing or invalid auth token | 401 | `UNAUTHORIZED` |
 | Access denied | 403 | `FORBIDDEN` |
 | Rate limit exceeded | 429 | `TOO_MANY_REQUESTS` |
 | Account temporarily locked | 429 | `ACCOUNT_TEMPORARILY_LOCKED` |
 | Business conflict ("already exists") | 409 | `CONFLICT` |
 | DB constraint violation | 409 | `CONFLICT` |
 | ETag mismatch on concurrent update | 412 | `PRECONDITION_FAILED` |
+| Unsupported request `Content-Type` | 415 | `UNSUPPORTED_MEDIA_TYPE` |
 | `If-Match` missing when required | 428 | `PRECONDITION_REQUIRED` |
 | Unexpected server error | 500 | `INTERNAL_ERROR` |
 

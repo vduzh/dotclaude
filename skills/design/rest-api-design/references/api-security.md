@@ -86,3 +86,7 @@ Preflight (`OPTIONS`) must be handled for non-simple methods (PUT / PATCH / DELE
 | Health/Docs | No | No | `/`, `/swagger-ui.html`, `/api-docs` |
 | Protected | Yes | No | `/api/v1/customers`, `/api/v1/orders` |
 | Admin | Yes (admin role) | No | `/api/v1/admin/*` |
+
+## Out of specification
+
+**Token refresh:** the refresh-token flow (short-lived access token paired with a long-lived refresh cookie, exchange endpoint, rotation on use, failure codes) is not defined here. Introduce a dedicated section when the access-token lifetime is short enough to need renewal mid-session.
