@@ -96,15 +96,36 @@ public class RateLimitingProperties {
 
 ### Cache config
 
+Cache beans must live in a dedicated `CacheConfig`, **not** in `SecurityConfig`. Placing them in `SecurityConfig` creates a circular dependency:
+
+```
+SecurityConfig → RateLimitingFilter → Cache<String, Bucket> → SecurityConfig
+```
+
 ```java
-@Bean
-public Cache<String, Bucket> rateLimitBuckets(RateLimitingProperties props) {
-    return Caffeine.newBuilder()
-        .expireAfterAccess(Duration.ofMinutes(props.getCache().getExpireAfterAccessMinutes()))
-        .maximumSize(props.getCache().getMaximumSize())
-        .build();
+@Configuration
+@RequiredArgsConstructor
+public class CacheConfig {
+
+    @Bean
+    public Cache<String, Bucket> rateLimitBuckets(RateLimitingProperties props) {
+        return Caffeine.newBuilder()
+            .expireAfterAccess(Duration.ofMinutes(props.getCache().getExpireAfterAccessMinutes()))
+            .maximumSize(props.getCache().getMaximumSize())
+            .build();
+    }
+
+    @Bean
+    public Cache<String, Integer> loginAttemptCache(LoginAttemptProperties props) {
+        return Caffeine.newBuilder()
+            .expireAfterWrite(Duration.ofMinutes(props.getBlockDurationMinutes()))
+            .maximumSize(props.getCache().getMaximumSize())
+            .build();
+    }
 }
 ```
+
+`SecurityConfig` defines only `SecurityFilterChain` and `PasswordEncoder`.
 
 ### Filter
 
@@ -169,14 +190,6 @@ public class LoginAttemptServiceImpl implements LoginAttemptService {
         return attemptsCache.get(ip + ":" + email.toLowerCase(), k -> 0)
             >= properties.getMaxAttempts();
     }
-}
-
-@Bean
-public Cache<String, Integer> loginAttemptCache(LoginAttemptProperties props) {
-    return Caffeine.newBuilder()
-        .expireAfterWrite(Duration.ofMinutes(props.getBlockDurationMinutes()))
-        .maximumSize(props.getCache().getMaximumSize())
-        .build();
 }
 ```
 
