@@ -1,7 +1,7 @@
 ---
 name: rest-api-design
 description: >
-  Design REST API contracts for a Spring Boot backend — URI conventions, HTTP
+  Design stack-agnostic REST API contracts — URI conventions, HTTP
   verbs, status codes, content negotiation, DTO naming, pagination, error
   responses, and security patterns. Use this skill when designing or reviewing
   API endpoints, request/response shapes, error formats, or security behavior.
@@ -9,12 +9,18 @@ description: >
 
 # REST API Design Conventions
 
-Apply these conventions when designing or implementing REST API endpoints.
+Apply these conventions when designing REST API endpoints.
+
+## Scope
+
+This skill defines **contract-level** REST API conventions — the HTTP-observable behavior of endpoints: URIs, verbs, status codes, headers, content negotiation, request/response shapes, error format, pagination, and authentication/rate-limiting semantics. Language- and framework-agnostic.
+
+Implementation details (framework wiring, libraries, annotations, code organization) are deliberately out of scope.
 
 ## Non-negotiable rules
 
 1. All endpoints under `/api/v1/...` — URI versioning.
-2. List view is the default representation — serves both `application/json` and the vendor type; specialized views (lookup, detail) require an explicit `Accept` header.
+2. Each endpoint has one default representation — for collections, a paged list of list-items; for single resources, all fields without associations. `application/json` returns the default; alternative representations require an explicit vendor media type in `Accept`.
 3. DELETE is idempotent — return `204 No Content` whether the resource existed or not.
 4. Collection endpoints always return `[]` with pagination on empty — never `404`.
 5. All error responses use `{code, message, details?}` — see `references/error-format.md`.
@@ -46,17 +52,26 @@ Apply these conventions when designing or implementing REST API endpoints.
 
 ## Content negotiation
 
-Same URL, different representations via `Accept` header. Vendor media type convention: `application/vnd.api.{entity}.{view}+json`
+Same URL, alternative representations selected via `Accept` header. Vendor media type convention: `application/vnd.api.{entity}.{view}+json`.
 
-| View | Accept header | Response | Use case |
-|------|--------------|----------|----------|
-| List | `application/vnd.api.profile.list+json` | `PagedResponse<ProfileListItem>` | Tables with pagination |
-| Lookup | `application/vnd.api.profile.lookup+json` | `ProfileLookup[]` | Dropdowns/selects |
-| Default | `application/json` | Same as list view | Swagger, generic clients |
+Vendor media types are **optional** — introduce them only when an endpoint offers more than one representation. With a single representation, `application/json` is sufficient.
 
-- List view is the default — also served for `application/json`
-- Lookup and other specialized views require explicit vendor `Accept` header
-- Unsupported `Accept` header → `406 Not Acceptable`
+### Collection endpoint — `GET /customers`
+
+| Accept header | Response | Use case |
+|---------------|----------|----------|
+| `application/json` *(default)* | Paged list of list-items | Tables, generic clients |
+| `application/vnd.api.customer.lookup+json` | Flat array of lookup items | Dropdowns, autocomplete |
+
+### Single-resource endpoint — `GET /customers/{id}`
+
+| Accept header | Response | Use case |
+|---------------|----------|----------|
+| `application/json` *(default)* | All fields, no associations | Normal read |
+| `application/vnd.api.customer.summary+json` | Reduced field set | Lightweight displays, polling |
+| `application/vnd.api.customer.full+json` | Default + expanded associations | Detail screens needing related entities |
+
+Unsupported `Accept` header → `406 Not Acceptable`.
 
 ## Query vs path parameters
 
@@ -67,17 +82,17 @@ Same URL, different representations via `Accept` header. Vendor media type conve
 ## GET
 
 ```
-GET /api/v1/profiles/550e8400-...
+GET /api/v1/customers/550e8400-...
 → 200 OK  |  404 Not Found
 
-GET /api/v1/profiles?page=1&limit=20&search=john&sort=-createdAt
+GET /api/v1/customers?page=1&limit=20&search=john&sort=-createdAt
 → 200 OK  (always, even if empty — return [] with pagination)
 ```
 
 ## POST
 
 ```
-POST /api/v1/profiles
+POST /api/v1/customers
 → 201 Created  (with created resource including generated id)
 ```
 
@@ -86,7 +101,7 @@ POST /api/v1/profiles
 All fields required. Null fields overwrite existing values.
 
 ```
-PUT /api/v1/profiles/550e8400-...
+PUT /api/v1/customers/550e8400-...
 → 200 OK  (with updated resource)
 ```
 
@@ -95,20 +110,17 @@ PUT /api/v1/profiles/550e8400-...
 Only provided (non-null) fields are updated. Absent/null fields are ignored.
 
 ```
-PATCH /api/v1/profiles/550e8400-...
+PATCH /api/v1/customers/550e8400-...
 { "lastName": "Smith" }
 → 200 OK  (with full updated resource)
 ```
 
-Validation rules:
-- Empty body `{}` or all-null fields → `400 Bad Request`
-- Blank string `""` → `400 Bad Request` (field is either absent or a valid non-blank value)
-- `null` means "don't touch this field", not "set to null"
+See `references/error-format.md` for PATCH validation rules (empty body, blank strings, etc.).
 
 ## DELETE — idempotent
 
 ```
-DELETE /api/v1/profiles/550e8400-...
+DELETE /api/v1/customers/550e8400-...
 → 204 No Content  (whether resource existed or not)
 ```
 
@@ -118,9 +130,11 @@ With business rules: if resource is found but cannot be deleted (e.g., in use), 
 
 Load the reference file for each area the current task touches:
 
+- `references/payload-conventions.md` — camelCase field names, primitive types (UUID, ISO 8601 date-time, enum `UPPER_SNAKE_CASE`), null-vs-absent semantics.
+  Load when designing JSON request/response shapes.
 - `references/dto-conventions.md` — DTO naming (noun-first), DTO types per operation, JSON examples.
   Load when designing request/response shapes or DTO naming.
-- `references/pagination-sorting.md` — query parameters, JSON:API sort format, `PagedResponse` wrapper, stable sorting.
+- `references/pagination-sorting.md` — query parameters, JSON:API sort format, paged response envelope, stable sorting.
   Load when designing list endpoints.
 - `references/error-format.md` — error codes, validation error shape, scenario-to-HTTP mapping.
   Load when designing error responses.

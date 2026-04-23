@@ -37,8 +37,6 @@ Name DTOs as `{Entity}{Operation}` — noun first:
 }
 ```
 
-All fields validated: required fields must be present, strings have max length, email format checked.
-
 ### Update (PUT)
 
 ```json
@@ -60,7 +58,7 @@ All fields required — full replacement.
 { "lastName": "Smith" }
 ```
 
-Only provided fields updated. Empty body `{}` → `400`. Blank strings → `400`.
+Only provided fields updated.
 
 ### Single resource response
 
@@ -70,7 +68,7 @@ Only provided fields updated. Empty body `{}` → `400`. Blank strings → `400`
   "firstName": "John",
   "lastName": "Doe",
   "email": "john@example.com",
-  "status": "active",
+  "status": "ACTIVE",
   "createdAt": "2025-01-15T10:30:00Z"
 }
 ```
@@ -80,7 +78,7 @@ Only provided fields updated. Empty body `{}` → `400`. Blank strings → `400`
 Subset of fields for table display:
 
 ```json
-{ "id": "550e8400-...", "firstName": "John", "lastName": "Doe", "status": "active" }
+{ "id": "550e8400-...", "firstName": "John", "lastName": "Doe", "status": "ACTIVE" }
 ```
 
 ### Lookup response
@@ -91,12 +89,6 @@ Minimal — for dropdown/select:
 { "id": "550e8400-...", "name": "John Doe" }
 ```
 
-## Validation rules
+## Validation
 
-| Rule | When | Error |
-|------|------|-------|
-| Required field missing | Create, Update | 400 — "Field is required" |
-| String exceeds max length | Create, Update, Patch | 400 — "Max N characters" |
-| Invalid email format | Create, Update, Patch | 400 — "Invalid email" |
-| Empty patch body | Patch | 400 — "At least one field required" |
-| Blank string in patch | Patch | 400 — "Must not be blank" |
+Per-DTO validation rules and the error shape they produce live in `references/error-format.md` (see "Validation rule catalog").

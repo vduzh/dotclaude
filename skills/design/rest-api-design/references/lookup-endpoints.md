@@ -3,8 +3,8 @@
 Design pattern for dropdown/autocomplete endpoints.
 
 ```
-GET /api/v1/athletes
-Accept: application/vnd.api.athlete.lookup+json
+GET /api/v1/customers
+Accept: application/vnd.api.customer.lookup+json
 ```
 
 Lookup endpoints return a flat array `T[]` — not a paginated wrapper.
@@ -13,7 +13,7 @@ Lookup endpoints return a flat array `T[]` — not a paginated wrapper.
 
 | Dataset | Expected volume | Strategy | X-Total-Count |
 |---------|----------------|----------|:---:|
-| Athletes, Users | 10-10000 | Server-side search | Yes |
+| Customers, Users | 10-10000 | Server-side search | Yes |
 | Payment Methods | <50/user | Load all | No |
 | Currencies | ~50 global | Load all | No |
 | Dictionaries | ~10-20 | Load all | No |
@@ -24,8 +24,8 @@ Query parameters: `search` (case-insensitive partial match), `limit` (default 50
 Response header: `X-Total-Count` — total matching records.
 
 ```
-GET /api/v1/athletes?search=john&limit=20
-Accept: application/vnd.api.athlete.lookup+json
+GET /api/v1/customers?search=john&limit=20
+Accept: application/vnd.api.customer.lookup+json
 → 200 OK
 X-Total-Count: 150
 
@@ -52,7 +52,7 @@ Accept: application/vnd.api.currency.lookup+json
 
 ```
 ┌─────────────────────────────┐
-│ Select athlete...        ▼  │
+│ Select customer...       ▼  │
 ├─────────────────────────────┤
 │ 🔍 Search...                │  ← show for large lists
 ├─────────────────────────────┤

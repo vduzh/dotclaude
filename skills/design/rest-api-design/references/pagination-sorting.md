@@ -22,12 +22,12 @@ Mandatory for all list endpoints.
 GET /api/v1/customers?page=2&limit=50&search=john&sort=name,-createdAt
 ```
 
-## PagedResponse format
+## Paged response envelope
 
 ```json
 {
   "data": [
-    { "id": "550e8400-...", "firstName": "John", "status": "active" }
+    { "id": "550e8400-...", "firstName": "John", "status": "ACTIVE" }
   ],
   "pagination": {
     "page": 1,

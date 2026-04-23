@@ -29,7 +29,7 @@ localStorage is vulnerable to XSS — any injected script can read it. HttpOnly 
 
 Protect public endpoints (login, register, forgot-password) from abuse.
 
-**Algorithm:** Token Bucket — allows burst traffic while enforcing average rate.
+**Behavior:** short bursts allowed above the steady-state rate; sustained rate enforced over a rolling window.
 
 **Key:** `{clientIP}:{endpoint}` — separate limits per IP per endpoint:
 
@@ -43,7 +43,7 @@ Protect public endpoints (login, register, forgot-password) from abuse.
 **Client IP detection** (behind proxies — check in order):
 1. `X-Forwarded-For` first IP
 2. `X-Real-IP`
-3. `request.getRemoteAddr()`
+3. Remote peer address (socket-level client IP)
 
 ## Brute-force protection
 
@@ -66,5 +66,5 @@ IP:email key (not just email) prevents Account Lockout Attack — attacker can o
 |----------|:---:|:---:|---------|
 | Public | No | Yes | `/auth/login`, `/auth/register`, `/auth/forgot-password` |
 | Health/Docs | No | No | `/`, `/swagger-ui.html`, `/api-docs` |
-| Protected | Yes | No | `/api/v1/customers`, `/api/v1/profiles` |
+| Protected | Yes | No | `/api/v1/customers`, `/api/v1/orders` |
 | Admin | Yes (admin role) | No | `/api/v1/admin/*` |

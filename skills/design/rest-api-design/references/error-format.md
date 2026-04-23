@@ -50,12 +50,24 @@ Standard error shape for all REST API error responses.
 - Class-level errors (e.g. "at least one field required") keyed by object name
 - One error per field — first encountered wins
 
+## Validation rule catalog
+
+Concrete rules that produce `VALIDATION_ERROR`:
+
+| Rule | Applies to | Error message |
+|------|------------|---------------|
+| Required field missing | POST, PUT | "Field is required" |
+| String exceeds max length | POST, PUT, PATCH | "Max N characters" |
+| Invalid email format | POST, PUT, PATCH | "Invalid email" |
+| Empty PATCH body or all-null fields | PATCH | "At least one field required" |
+| Blank string in PATCH | PATCH | "Must not be blank" |
+
 ## Non-validation errors
 
 `details` is omitted entirely:
 
 ```json
-{ "code": "NOT_FOUND", "message": "Profile not found with id: 550e8400-..." }
+{ "code": "NOT_FOUND", "message": "Customer not found with id: 550e8400-..." }
 { "code": "CONFLICT", "message": "User with this email already exists" }
 { "code": "BAD_REQUEST", "message": "Invalid parameter: id" }
 { "code": "INTERNAL_ERROR", "message": "Internal server error" }
