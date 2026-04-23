@@ -69,7 +69,8 @@ Only provided fields updated.
   "lastName": "Doe",
   "email": "john@example.com",
   "status": "ACTIVE",
-  "createdAt": "2025-01-15T10:30:00Z"
+  "createdAt": "2025-01-15T10:30:00Z",
+  "updatedAt": "2025-03-02T14:05:00Z"
 }
 ```
 

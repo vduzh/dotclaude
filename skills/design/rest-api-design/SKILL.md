@@ -17,6 +17,8 @@ This skill defines **contract-level** REST API conventions — the HTTP-observab
 
 Implementation details (framework wiring, libraries, annotations, code organization) are deliberately out of scope.
 
+Out of specification (define when a concrete case arises): bulk operations, long-running async (`202 Accepted` + polling), multipart file upload, deprecation / sunset policy.
+
 ## Non-negotiable rules
 
 1. All endpoints under `/api/v1/...` — URI versioning.
@@ -48,6 +50,8 @@ Implementation details (framework wiring, libraries, annotations, code organizat
 | 404 Not Found | Resource not found |
 | 406 Not Acceptable | Unsupported Accept header |
 | 409 Conflict | Business conflict, duplicate, constraint violation |
+| 412 Precondition Failed | ETag mismatch on concurrent update |
+| 428 Precondition Required | `If-Match` header missing when required |
 | 429 Too Many Requests | Rate limit exceeded |
 
 ## Content negotiation
@@ -73,17 +77,39 @@ Vendor media types are **optional** — introduce them only when an endpoint off
 
 Unsupported `Accept` header → `406 Not Acceptable`.
 
-## Query vs path parameters
+## URI conventions
 
-- **Query params**: filtering/searching collections (`?email=...`, `?status=active`)
-- **Path with prefix**: alternative unique identifier (`/by-email/{email}`, `/by-username/{username}`)
-- Avoid `/customers/email/{email}` — looks like a nested resource
+### Naming
+
+- Resource collections are **plural nouns**: `/customers`, `/orders` — never `/customer`, `/getCustomers`.
+- Multi-word paths use **kebab-case**: `/payment-methods`, `/user-sessions` — never camelCase or snake_case.
+- URIs contain **no verbs** — use HTTP methods instead. `POST /customers` creates; no `/customers/create`.
+
+### Hierarchy
+
+- **Nested** when the child belongs to exactly one parent and has no independent identity: `/customers/{id}/addresses`.
+- **Flat with query filter** when the entity has independent identity and can be related to many things: `/orders?customerId={id}`.
+
+### Lookup by alternative identifier
+
+Use the `by-{field}` prefix for non-id lookups:
+
+```
+GET /api/v1/customers/by-email/{email}
+GET /api/v1/customers/by-username/{username}
+```
+
+Avoid `/customers/email/{email}` — reads as a nested resource, not a lookup.
+
+### Query parameters
+
+Filtering, searching, sorting on collections: `?status=ACTIVE`, `?search=john`, `?sort=-createdAt`. See `references/pagination-sorting.md`.
 
 ## GET
 
 ```
 GET /api/v1/customers/550e8400-...
-→ 200 OK  |  404 Not Found
+→ 200 OK
 
 GET /api/v1/customers?page=1&limit=20&search=john&sort=-createdAt
 → 200 OK  (always, even if empty — return [] with pagination)
@@ -115,16 +141,12 @@ PATCH /api/v1/customers/550e8400-...
 → 200 OK  (with full updated resource)
 ```
 
-See `references/error-format.md` for PATCH validation rules (empty body, blank strings, etc.).
-
 ## DELETE — idempotent
 
 ```
 DELETE /api/v1/customers/550e8400-...
 → 204 No Content  (whether resource existed or not)
 ```
-
-With business rules: if resource is found but cannot be deleted (e.g., in use), return `409 Conflict`. Business checks only run if resource is found.
 
 ## Optional references
 
@@ -136,6 +158,8 @@ Load the reference file for each area the current task touches:
   Load when designing request/response shapes or DTO naming.
 - `references/pagination-sorting.md` — query parameters, JSON:API sort format, paged response envelope, stable sorting.
   Load when designing list endpoints.
+- `references/idempotency-concurrency.md` — `Idempotency-Key` for POST retries, `ETag`/`If-Match` optimistic concurrency, 412/428 semantics.
+  Load when designing retry-safe writes or concurrent edits.
 - `references/error-format.md` — error codes, validation error shape, scenario-to-HTTP mapping.
   Load when designing error responses.
 - `references/lookup-endpoints.md` — strategy by data volume, `X-Total-Count`, frontend UX pattern.

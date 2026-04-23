@@ -26,6 +26,8 @@ Standard error shape for all REST API error responses.
 | `BAD_REQUEST` | 400 | Invalid input (type mismatch, bad UUID, etc.) |
 | `NOT_FOUND` | 404 | Resource not found |
 | `CONFLICT` | 409 | Business conflict or DB constraint violation |
+| `PRECONDITION_FAILED` | 412 | `If-Match` ETag did not match current resource version |
+| `PRECONDITION_REQUIRED` | 428 | `If-Match` header missing when required |
 | `FORBIDDEN` | 403 | Access denied |
 | `UNAUTHORIZED` | 401 | Missing or invalid authentication |
 | `TOO_MANY_REQUESTS` | 429 | Rate limit exceeded |
@@ -86,6 +88,8 @@ Concrete rules that produce `VALIDATION_ERROR`:
 | Account temporarily locked | 429 | `ACCOUNT_TEMPORARILY_LOCKED` |
 | Business conflict ("already exists") | 409 | `CONFLICT` |
 | DB constraint violation | 409 | `CONFLICT` |
+| ETag mismatch on concurrent update | 412 | `PRECONDITION_FAILED` |
+| `If-Match` missing when required | 428 | `PRECONDITION_REQUIRED` |
 | Unexpected server error | 500 | `INTERNAL_ERROR` |
 
 Never expose stack traces or internal details. Never let generic programming errors map to 4xx — they become 500.
