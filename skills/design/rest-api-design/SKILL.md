@@ -25,7 +25,7 @@ Out of specification (define when a concrete case arises): bulk operations, long
 2. Each endpoint has one default representation — for collections, a paged list of list-items; for single resources, all fields without associations. `application/json` returns the default; alternative representations require an explicit vendor media type in `Accept`.
 3. DELETE is idempotent — return `204 No Content` whether the resource existed or not.
 4. Collection endpoints always return `[]` with pagination on empty — never `404`.
-5. All error responses use `{code, message, details?}` — see `references/error-format.md`.
+5. All error responses use `{code, message, details?}`.
 
 ## HTTP methods
 
@@ -103,7 +103,7 @@ Avoid `/customers/email/{email}` — reads as a nested resource, not a lookup.
 
 ### Query parameters
 
-Filtering, searching, sorting on collections: `?status=ACTIVE`, `?search=john`, `?sort=-createdAt`. See `references/pagination-sorting.md`.
+Filtering, searching, sorting on collections: `?status=ACTIVE`, `?search=john`, `?sort=-createdAt`.
 
 ## GET
 
@@ -152,15 +152,15 @@ DELETE /api/v1/customers/550e8400-...
 
 Load the reference file for each area the current task touches:
 
-- `references/payload-conventions.md` — camelCase field names, primitive types (UUID, ISO 8601 date-time, enum `UPPER_SNAKE_CASE`), null-vs-absent semantics.
+- `references/payload-conventions.md` — camelCase field names, primitive types (UUID, ISO 8601 date-time, enum `UPPER_SNAKE_CASE`), null-vs-absent semantics, audit fields.
   Load when designing JSON request/response shapes.
 - `references/dto-conventions.md` — DTO naming (noun-first), DTO types per operation, JSON examples.
   Load when designing request/response shapes or DTO naming.
-- `references/pagination-sorting.md` — query parameters, JSON:API sort format, paged response envelope, stable sorting.
+- `references/pagination-sorting.md` — query parameters, JSON:API sort format, paged response envelope, empty-result shape, filter strategy, stable sorting.
   Load when designing list endpoints.
 - `references/idempotency-concurrency.md` — `Idempotency-Key` for POST retries, `ETag`/`If-Match` optimistic concurrency, 412/428 semantics.
   Load when designing retry-safe writes or concurrent edits.
-- `references/error-format.md` — error codes, validation error shape, scenario-to-HTTP mapping.
+- `references/error-format.md` — error object, error codes, validation error shape, validation rule catalog, scenario-to-HTTP mapping.
   Load when designing error responses.
 - `references/lookup-endpoints.md` — strategy by data volume, `X-Total-Count`, frontend UX pattern.
   Load when designing dropdown/autocomplete endpoints.

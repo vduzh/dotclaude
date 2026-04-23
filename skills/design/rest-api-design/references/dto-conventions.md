@@ -91,6 +91,3 @@ Minimal — for dropdown/select:
 { "id": "550e8400-...", "name": "John Doe" }
 ```
 
-## Validation
-
-Per-DTO validation rules and the error shape they produce live in `references/error-format.md` (see "Validation rule catalog").
