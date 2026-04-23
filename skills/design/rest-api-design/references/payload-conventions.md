@@ -42,6 +42,15 @@ Acronyms follow the lowercase-after-first-letter rule: `userId`, `apiKey`, `http
 
 This follows JSON Merge Patch semantics (RFC 7396).
 
+## Audit fields
+
+All resources include audit timestamps in their default representation:
+
+- `createdAt` (`date-time`) — when the resource was created.
+- `updatedAt` (`date-time`) — when the resource was last modified; equals `createdAt` until first change.
+
+Audit fields are **read-only** on the wire — never accepted in POST / PUT / PATCH bodies; always set by the server.
+
 ## Canonical example
 
 A response body combining all conventions:
