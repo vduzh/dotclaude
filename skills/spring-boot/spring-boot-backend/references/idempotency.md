@@ -1,6 +1,6 @@
 # Idempotency
 
-Spring Boot implementation of `rest-api-design/references/idempotency.md` — once-only POST execution backed by a database record.
+Spring Boot implementation of the `rest-api-design` skill idempotency contract — once-only POST execution backed by a database record.
 
 **Opt-in feature.** Nothing is wired globally. Each endpoint that needs idempotency opts in by wrapping its create flow explicitly. Enable on high-stakes POSTs (orders, payments, outbound notifications); leave regular POSTs untouched. If the feature is not used, omit the table, entity, service, and cleanup job entirely.
 

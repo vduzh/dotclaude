@@ -16,10 +16,6 @@ This skill implements the REST API contract defined in the `rest-api-design` ski
 
 **Out of scope:** `ETag`/`If-Match` optimistic concurrency — introduce when multi-editor conflicts become a concrete business requirement (see the `rest-api-design` scope).
 
-## Prerequisites
-
-The Gradle build must include: Lombok, MapStruct (with `lombok-mapstruct-binding`), Spring Data JPA, Liquibase, and a JDBC driver. If any are missing, configure them via the `spring-boot-gradle-setup` skill before proceeding.
-
 ## Non-negotiable rules
 
 1. Services accept DTOs from the `dto` package only; never transport-specific objects (HTTP requests, Kafka messages, aggregates).
@@ -62,12 +58,14 @@ These URI rules are enforced in controllers only; services operate on IDs and DT
 | Package | Contents |
 |---------|----------|
 | `controller/` | `@RestController` classes |
-| `service/` | Service interfaces and `XxxServiceImpl` implementations |
+| `service/` | Service interfaces |
+| `service/impl/` | `XxxServiceImpl` implementations |
 | `repository/` | Spring Data JPA repositories |
 | `repository/spec/` | `XxxSpecification` and `XxxFilter` classes |
 | `model/` (or `repository/jpa/entity/`) | JPA entities |
 | `model/enums/` | All enums as standalone files |
-| `dto/` | Request/response DTOs |
+| `dto/` | Shared DTOs (`PagedResult`, `PagedResponse`, `Patchable`, `ErrorDto`) |
+| `dto/{domain}/` | Domain-specific DTOs (`XxxCreateDto`, `XxxUpdateDto`, `XxxPatchDto`, `XxxDto`, `XxxSearchParams`) |
 | `mapper/` | MapStruct mappers |
 | `exception/` | Exception classes and `GlobalExceptionHandler` |
 | `config/` | Spring `@Configuration` classes |
@@ -94,16 +92,9 @@ All dependencies are `private final` fields.
 
 ## Adapter pattern
 
-Services only accept DTOs from the `dto` package. Each entry point (controller, Kafka consumer, scheduler) converts its transport objects into service DTOs before calling the service:
+Services only accept DTOs from the `dto` package. Each entry point (controller, Kafka consumer, scheduler) converts its transport objects into service DTOs before calling the service. Services receive `userId` as a method parameter, never extract it from `SecurityContext`.
 
 ```java
-// Controller — adapts HTTP to service DTOs
-@PostMapping
-public CustomerDto create(@Valid @RequestBody CustomerCreateDto dto) {
-    UUID userId = getCurrentUserId(authentication);
-    return customerService.create(userId, dto);
-}
-
 // Kafka consumer — adapts message to service DTOs
 @KafkaListener(topics = "user.events")
 public void handle(UserAggregate aggregate) {
@@ -112,120 +103,7 @@ public void handle(UserAggregate aggregate) {
 }
 ```
 
-## Auth as parameter
-
-Services receive `userId` as a method parameter, never extract it from `SecurityContext`:
-
-```java
-// ✅ Good — service is infrastructure-agnostic
-public CustomerDto create(UUID userId, CustomerCreateDto dto) { ... }
-```
-
-Authentication is resolved at the entry point (controller via `Authentication`, consumer via message payload).
-
-## Entity design
-
-```java
-@Entity
-@Table(name = "customers")
-@Getter @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class CustomerEntity {
-    @Id
-    private UUID id;
-
-    @Column(nullable = false)
-    private String firstName;
-
-    @Column(nullable = false)
-    private String lastName;
-
-    private String email;                    // nullable
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private AccountStatus status;
-
-    @CreatedDate
-    @Column(updatable = false)
-    private Instant createdAt;
-
-    @LastModifiedDate
-    private Instant updatedAt;
-}
-```
-
-Associations (`country`, `paymentMethods`) are omitted here for clarity — see `references/jpa.md` for `@ManyToOne`/`@ManyToMany` mappings on this entity.
-
-- Use `@Getter @Setter`, never `@Data` — avoids `equals`/`hashCode` issues with lazy loading
-- Use `UUID` for IDs
-- Add `@CreatedDate`/`@LastModifiedDate` only to **own entities**; do NOT add to replicated entities (their lifecycle is managed by the source system)
-- Requires `@EnableJpaAuditing` on a `@Configuration` class
-
-## ID ownership
-
-- **Own entities**: ID generated inside the service via `UUID.randomUUID()` and passed to the mapper.
-- **Replicated entities** (data arriving via events from external systems): ID comes from the source system in the DTO — preserve it.
-
-```java
-// Own entity — service owns the ID
-public CustomerDto create(UUID userId, CustomerCreateDto dto) {
-    UUID id = UUID.randomUUID();
-    CustomerEntity entity = mapper.toEntity(dto);
-    entity.setId(id);
-    repository.save(entity);
-    return mapper.toDto(entity);
-}
-```
-
-## Enums organization
-
-All enums in separate files in `model/enums/`. Never nested inside entities.
-
-## Transaction management
-
-```java
-@Service
-@Transactional                          // default for all methods
-@RequiredArgsConstructor
-public class CustomerServiceImpl implements CustomerService {
-
-    @Override
-    @Transactional(readOnly = true)     // override for reads
-    public CustomerDto findById(UUID id) { ... }
-
-    @Override
-    public CustomerDto create(UUID userId, CustomerCreateDto dto) { ... }
-}
-```
-
-## Idempotent delete
-
-DELETE must be idempotent — return 204 whether the resource exists or not:
-
-```java
-public void deleteCustomer(UUID id) {
-    customerRepository.findById(id).ifPresent(entity -> {
-        customerRepository.delete(entity);
-        log.info("Deleted customer: id={}", id);
-    });
-}
-```
-
-With business rules — checks only performed if resource is found:
-
-```java
-public void deleteCustomer(UUID id) {
-    customerRepository.findById(id).ifPresent(customer -> {
-        if (customer.getStatus() != AccountStatus.INACTIVE) {
-            throw new ConflictException("Cannot delete: customer must be INACTIVE first");
-        }
-        customerRepository.delete(customer);
-    });
-}
-```
+Controller adapter pattern — see `references/controller.md`.
 
 ## Method ordering
 
@@ -236,10 +114,16 @@ public void deleteCustomer(UUID id) {
 
 Load the reference file for each area the current task touches:
 
-- `references/dto.md` — DTO class structure, Lombok per DTO type, Bean Validation, `@Schema`, MapStruct mapper.
-  Load when creating or modifying DTOs or mappers.
-- `references/jpa.md` — Repository conventions, With-suffix for JOIN FETCH, `getReferenceById`, `@EntityGraph`, datasource/HikariCP config.
-  Load when writing repositories, queries, or tuning datasource config.
+- `references/controller.md` — BaseController, CRUD skeleton, ResponseEntity conventions, authentication resolution, request binding.
+  Load when creating or modifying controllers.
+- `references/service.md` — Interface/Impl structure, CRUD skeleton, transaction management, ownership verification, idempotent delete, helper methods.
+  Load when creating or modifying services.
+- `references/dto.md` — DTO class structure, Lombok per DTO type, Bean Validation, `@Schema`.
+  Load when creating or modifying DTOs.
+- `references/mapper.md` — MapStruct mapper interface, method naming, ignore rules, sub-mappers, collection helpers.
+  Load when creating or modifying mappers.
+- `references/jpa.md` — Entity design (annotations, ID ownership, enums), repository conventions, With-suffix for JOIN FETCH, `getReferenceById`, `@EntityGraph`, datasource/HikariCP config.
+  Load when creating or modifying entities, writing repositories or queries, or tuning datasource config.
 - `references/exceptions.md` — Dedicated exception classes, `GlobalExceptionHandler`, `ErrorDto`, Exception-vs-Optional.
   Load when adding error handling or a new exception type.
 - `references/pagination.md` — `PagedResult`/`PagedResponse`, `SortUtil`, `@ValidSort`, Specifications, Filter objects, `SearchParams`.
@@ -252,8 +136,10 @@ Load the reference file for each area the current task touches:
   Load when adding lookup endpoints for dropdowns or selects.
 - `references/security-oauth2.md` — Dual `SecurityFilterChain`, OAuth2 Resource Server (Keycloak/external IdP), CORS.
   Load when the service validates JWTs issued by an external IdP.
-- `references/security-jjwt.md` — Dual `SecurityFilterChain`, self-issued JWTs (JJWT), account state gating, anti-enumeration, per-IP + per-user rate limiting with `X-RateLimit-*` headers, login-attempt protection (IP-email + email-global), email-trigger cooldown, persisted secret hashing, CORS.
+- `references/security-jwt.md` — SecurityConfig, JwtAuthenticationFilter, HttpOnly cookie, AuthController, account state gating, anti-enumeration, login-attempt protection, CORS, token hashing, client IP detection.
   Load when the service issues and validates its own JWTs.
+- `references/rate-limiting.md` — Bucket4j per-endpoint and per-user filters, `X-RateLimit-*` headers, email-trigger cooldown, RateLimitExceededException.
+  Load when adding rate limiting to the API.
 - `references/refresh-tokens.md` — Refresh-token flow (opt-in): rotation, family revocation on reuse, scope-limited cookie, server-side revocation on logout, hashed storage.
   Load when implementing short-lived access tokens + refresh.
 - `references/logging.md` — `key=value` format, verb tenses, PII via `@ToString`.

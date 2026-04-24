@@ -109,7 +109,7 @@ public class GlobalExceptionHandler {
 }
 ```
 
-For security-specific exceptions (`AccessDeniedException`, `AuthenticationException`, `RateLimitExceededException`, etc.), see `references/security-oauth2.md` or `references/security-jjwt.md`.
+For security-specific exceptions (`AccessDeniedException`, `AuthenticationException`, `RateLimitExceededException`, etc.), see `references/security-jwt.md` (and `references/rate-limiting.md` for `RateLimitExceededException`) or `references/security-oauth2.md`.
 
 For `GoneException` (410, `GONE`), see `references/idempotency.md`.
 

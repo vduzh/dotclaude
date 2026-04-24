@@ -2,7 +2,7 @@
 
 Spring Security as OAuth2 Resource Server — validate JWTs issued by an external IdP (Keycloak).
 
-See `spring-boot-gradle-setup/references/security-oauth2.md` for dependency setup.
+
 
 ## SecurityConfig
 

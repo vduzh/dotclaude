@@ -1,6 +1,6 @@
 # DTO Implementation
 
-Spring Boot DTO conventions — class structure, Lombok, Bean Validation, `@Schema`, MapStruct mapper.
+Spring Boot DTO conventions — class structure, Lombok, Bean Validation, `@Schema`.
 
 ## Lombok annotations per DTO type
 
@@ -92,7 +92,7 @@ public class CustomerFullDto {
 }
 ```
 
-The scalar-vs-collection naming asymmetry is by design — see `rest-api-design/references/dto-conventions.md`.
+The scalar-vs-collection naming asymmetry is by design — see the `rest-api-design` skill.
 
 ## Audit fields are read-only on the wire
 
@@ -120,76 +120,6 @@ Use `@JsonFormat(shape = STRING)` per field (not a global `ObjectMapper` setting
 - `@Schema(name = "Customer")` on the class — strips `Dto` suffix in Swagger UI.
 - `@Schema(description = ..., example = ...)` on fields — improves API docs.
 - Apply to all DTO types.
-
-## MapStruct mapper
-
-```java
-@Mapper(componentModel = "spring", uses = { CountryMapper.class, PaymentMethodMapper.class })
-public interface CustomerMapper {
-
-    // Default response — FK as identifiers
-    @Mapping(target = "countryId", source = "country.id")
-    @Mapping(target = "paymentMethods", source = "paymentMethods", qualifiedByName = "paymentMethodIds")
-    CustomerDto toDto(CustomerEntity entity);
-
-    // Full response — FK expanded via sub-mappers (resolved through `uses`)
-    @Mapping(target = "country", source = "country")
-    @Mapping(target = "paymentMethods", source = "paymentMethods")
-    CustomerFullDto toFullDto(CustomerEntity entity);
-
-    CustomerSummaryDto toSummaryDto(CustomerEntity entity);
-
-    CustomerListItemDto toListItemDto(CustomerEntity entity);
-
-    // Lookup — derived display name
-    @Mapping(target = "name",
-             expression = "java(entity.getFirstName() + \" \" + entity.getLastName())")
-    CustomerLookupDto toLookupDto(CustomerEntity entity);
-
-    // Write — associations resolved by the service, not the mapper
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "country", ignore = true)
-    @Mapping(target = "paymentMethods", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    CustomerEntity toEntity(CustomerCreateDto dto);
-
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "country", ignore = true)
-    @Mapping(target = "paymentMethods", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    void updateEntityFromDto(CustomerUpdateDto dto, @MappingTarget CustomerEntity entity);
-
-    @Named("paymentMethodIds")
-    default List<UUID> toPaymentMethodIds(Set<PaymentMethodEntity> entities) {
-        return entities.stream().map(PaymentMethodEntity::getId).toList();
-    }
-}
-```
-
-- `componentModel = "spring"` — inject via constructor.
-- Do NOT set `nullValuePropertyMappingStrategy` at `@Mapper` level — use `@BeanMapping` only on patch methods (see `references/patch.md`).
-- Write methods (`toEntity`, `updateEntityFromDto`, `patchEntityFromDto`) ignore associations — the service resolves FK UUIDs to entity references via `getReferenceById` (see `references/jpa.md`).
-- `uses = { CountryMapper.class, PaymentMethodMapper.class }` wires sub-mappers for the full variant; no inline expressions needed.
-
-## Service — FK resolution before save
-
-```java
-@Transactional
-public CustomerDto create(UUID userId, CustomerCreateDto dto) {
-    CustomerEntity entity = customerMapper.toEntity(dto);
-    entity.setId(UUID.randomUUID());
-    entity.setCountry(countryRepository.getReferenceById(dto.getCountryId()));
-    entity.setPaymentMethods(dto.getPaymentMethods().stream()
-        .map(paymentMethodRepository::getReferenceById)
-        .collect(Collectors.toSet()));
-    customerRepository.save(entity);
-    return customerMapper.toDto(entity);
-}
-```
-
-`getReferenceById` produces a proxy — no SELECT. Invalid FK triggers `DataIntegrityViolationException` at flush → `409 CONFLICT` via `GlobalExceptionHandler`. If a cleaner `400 BAD_REQUEST` is required, validate with `existsById` before save and throw `BadRequestException`.
 
 ## Controller: @Valid
 

@@ -1,6 +1,97 @@
 # Spring Data JPA Conventions
 
-Repository naming, eager loading strategy, FK handling, and datasource configuration.
+Entity design, repository naming, eager loading strategy, FK handling, and datasource configuration.
+
+## Entity design
+
+```java
+@Entity
+@Table(name = "customers")
+@EntityListeners(AuditingEntityListener.class)
+@Getter @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CustomerEntity {
+
+    @Id
+    @Column(updatable = false, nullable = false)
+    private UUID id;
+
+    @Column(nullable = false)
+    private String firstName;
+
+    @Column(nullable = false)
+    private String lastName;
+
+    private String email;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AccountStatus status;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "country_id", nullable = false)
+    @ToString.Exclude
+    private CountryEntity country;
+
+    @ManyToMany
+    @JoinTable(
+        name = "customer_payment_methods",
+        joinColumns = @JoinColumn(name = "customer_id"),
+        inverseJoinColumns = @JoinColumn(name = "payment_method_id")
+    )
+    @ToString.Exclude
+    private Set<PaymentMethodEntity> paymentMethods;
+
+    @CreatedDate
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedDate
+    @Column(nullable = false)
+    private Instant updatedAt;
+
+    @PrePersist
+    @PreUpdate
+    void truncateTimestamps() {
+        if (createdAt != null) {
+            createdAt = createdAt.truncatedTo(ChronoUnit.MICROS);
+        }
+        if (updatedAt != null) {
+            updatedAt = updatedAt.truncatedTo(ChronoUnit.MICROS);
+        }
+    }
+}
+```
+
+- Use `@Getter @Setter`, never `@Data` — avoids `equals`/`hashCode` issues with lazy loading
+- Use `UUID` for IDs; mark `@Column(updatable = false, nullable = false)` on the `@Id` field
+- All associations `FetchType.LAZY` — eager loading via With-suffix convention (see below)
+- `@ToString.Exclude` on every lazy association — prevents `LazyInitializationException` in `toString()`
+- Add `@CreatedDate`/`@LastModifiedDate` only to **own entities**; do NOT add to replicated entities (their lifecycle is managed by the source system)
+- Requires `@EntityListeners(AuditingEntityListener.class)` on the entity and `@EnableJpaAuditing` on a `@Configuration` class
+- `truncateTimestamps()` — PostgreSQL `TIMESTAMP WITH TIME ZONE` stores microseconds; Java `Instant.now()` produces nanoseconds. Without truncation the in-memory entity differs from the persisted value on the first response
+
+## ID ownership
+
+- **Own entities**: ID generated inside the service via `UUID.randomUUID()` and passed to the mapper.
+- **Replicated entities** (data arriving via events from external systems): ID comes from the source system in the DTO — preserve it.
+
+```java
+// Own entity — service owns the ID
+public CustomerDto create(UUID userId, CustomerCreateDto dto) {
+    UUID id = UUID.randomUUID();
+    CustomerEntity entity = mapper.toEntity(dto);
+    entity.setId(id);
+    repository.save(entity);
+    return mapper.toDto(entity);
+}
+```
+
+## Enums
+
+All enums in separate files in `model/enums/`. Never nested inside entities.
 
 ## Prefer ID over Entity in parameters
 

@@ -1,8 +1,8 @@
 # Refresh Tokens
 
-Spring Boot implementation of the `rest-api-design/references/api-security.md` refresh-token invariants — **rotation on every use**, **family revocation on reuse**, **scope-limited cookie**, **server-side revocation on logout**, **hashed storage**.
+Spring Boot implementation of the `rest-api-design` skill refresh-token invariants — **rotation on every use**, **family revocation on reuse**, **scope-limited cookie**, **server-side revocation on logout**, **hashed storage**.
 
-**Opt-in feature.** Enable when short-lived access tokens with periodic refresh are preferred to a longer-lived access token. Self-contained — table, entity, service, wiring can be added or removed without touching the rest of the stack. Pairs with `references/security-jjwt.md` (builds on `TokenHashUtil`, `JwtService`, cookie helpers).
+**Opt-in feature.** Enable when short-lived access tokens with periodic refresh are preferred to a longer-lived access token. Self-contained — table, entity, service, wiring can be added or removed without touching the rest of the stack. Pairs with `references/security-jwt.md` (builds on `TokenHashUtil`, `JwtService`, cookie helpers).
 
 ## Flow at a glance
 
@@ -225,7 +225,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<Void> login(@Valid @RequestBody LoginDto dto, HttpServletRequest request) {
-        // ... lockout + credentials + account state (see security-jjwt.md AuthController) ...
+        // ... lockout + credentials + account state (see security-jwt.md AuthController) ...
         User user = /* verified + ACTIVE */;
 
         String accessToken  = jwtService.generateToken(user);

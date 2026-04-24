@@ -136,7 +136,7 @@ Load the reference file for each stack the project uses:
   Load when the project publishes or consumes Kafka events.
 - `references/security-oauth2.md` — OAuth2 Resource Server (Keycloak/external IdP).
   Load when the service validates JWTs issued by an external IdP.
-- `references/security-jjwt.md` — Self-issued JWTs (JJWT) + rate limiting (Bucket4j + Caffeine).
+- `references/security-jjwt.md` — Self-issued JWTs (JJWT) + rate limiting (Bucket4j + Caffeine) dependencies.
   Load when the service issues and validates its own JWTs.
 - `references/testing.md` — Testcontainers core (cross-stack).
   Load when the project uses Testcontainers in tests.

@@ -2,7 +2,7 @@
 
 Large vs small lookup, `X-Total-Count` header.
 
-Expose `X-Total-Count` in CORS `exposedHeaders` — see `references/security-jjwt.md` or `references/security-oauth2.md`.
+Expose `X-Total-Count` in CORS `exposedHeaders` — see `references/security-jwt.md` or `references/security-oauth2.md`.
 
 ## Large lookup (server-side search)
 
