@@ -18,14 +18,14 @@ This skill defines **contract-level** REST API conventions — the HTTP-observab
 
 Implementation details (framework wiring, libraries, annotations, code organization) are deliberately out of scope.
 
-Out of specification (define when a concrete case arises): bulk operations, long-running async (`202 Accepted` + polling), multipart file upload, deprecation / sunset policy.
+Out of specification (define when a concrete case arises): bulk operations, long-running async (`202 Accepted` + polling), multipart file upload, deprecation / sunset policy, `ETag`/`If-Match` optimistic concurrency (introduce when multi-editor conflicts become a concrete business requirement).
 
 ## Non-negotiable rules
 
 1. All endpoints under `/api/v1/...` — URI versioning.
-2. Each endpoint has one default representation — for collections, a paged list of list-items; for single resources, all fields without associations. `application/json` returns the default; alternative representations require an explicit vendor media type in `Accept`.
-3. DELETE is idempotent — return `204 No Content` whether the resource existed or not.
-4. Collection endpoints always return `[]` with pagination on empty — never `404`.
+2. Each endpoint has one default representation — for collections, a paged list of list-items; for single resources, all fields with associations carried as identifiers (scalar FK: `xxxId`; collection FK: array of UUIDs). `application/json` returns the default; alternative representations require an explicit vendor media type in `Accept`.
+3. Collection endpoints always return `[]` with pagination on empty — never `404`.
+4. DELETE is idempotent — return `204 No Content` whether the resource existed or not.
 5. All error responses use `{code, message, details?}`.
 
 ## HTTP methods
@@ -51,9 +51,8 @@ Out of specification (define when a concrete case arises): bulk operations, long
 | 404 Not Found | Resource not found |
 | 406 Not Acceptable | Unsupported Accept header |
 | 409 Conflict | Business conflict, duplicate, constraint violation |
-| 412 Precondition Failed | ETag mismatch on concurrent update |
+| 410 Gone | Idempotency retry when the created resource no longer exists |
 | 415 Unsupported Media Type | Request `Content-Type` not supported |
-| 428 Precondition Required | `If-Match` header missing when required |
 | 429 Too Many Requests | Rate limit exceeded |
 | 500 Internal Server Error | Unexpected server error |
 
@@ -74,7 +73,7 @@ Vendor media types are **optional** — introduce them only when an endpoint off
 
 | Accept header | Response | Use case |
 |---------------|----------|----------|
-| `application/json` *(default)* | All fields, no associations | Normal read |
+| `application/json` *(default)* | All fields; associations as identifiers | Normal read |
 | `application/vnd.api.customer.summary+json` | Reduced field set | Lightweight displays, polling |
 | `application/vnd.api.customer.full+json` | Default + expanded associations | Detail screens needing related entities |
 
@@ -170,8 +169,8 @@ Load the reference file for each area the current task touches:
   Load when designing request/response shapes or DTO naming.
 - `references/pagination-sorting.md` — query parameters, JSON:API sort format, paged response envelope, empty-result shape, stable sorting.
   Load when designing list endpoints.
-- `references/idempotency-concurrency.md` — `Idempotency-Key` for POST retries, `ETag`/`If-Match` optimistic concurrency, 412/428 semantics.
-  Load when designing retry-safe writes or concurrent edits.
+- `references/idempotency.md` — `Idempotency-Key` for POST retries.
+  Load when designing retry-safe writes.
 - `references/error-format.md` — error object, error codes, validation error shape, validation rule catalog, scenario-to-HTTP mapping.
   Load when designing error responses.
 - `references/lookup-endpoints.md` — strategy by data volume, `X-Total-Count`, frontend UX pattern.

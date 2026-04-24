@@ -59,7 +59,7 @@ Audit fields are **read-only** on the wire — never accepted in POST / PUT / PA
 
 ## Canonical example
 
-A response body combining all conventions:
+A `Customer` response body combining all conventions — required fields, a nullable field (`email`), an enum, a scalar FK (`countryId`), a collection FK (`paymentMethods`), audit timestamps:
 
 ```json
 {
@@ -68,7 +68,14 @@ A response body combining all conventions:
   "lastName": "Doe",
   "email": "john@example.com",
   "status": "ACTIVE",
+  "countryId": "660e8400-e29b-41d4-a716-446655440010",
+  "paymentMethods": [
+    "770e8400-e29b-41d4-a716-446655440020",
+    "770e8400-e29b-41d4-a716-446655440021"
+  ],
   "createdAt": "2026-04-23T10:30:00Z",
   "updatedAt": "2026-04-23T10:30:00Z"
 }
 ```
+
+`email` may be `null`; `countryId` is required. The same resource at `application/vnd.api.customer.full+json` expands scalar FK to a named object (`country: {id, name}` — the `Id`-suffix drops when the scalar is expanded) while the collection keeps its name and swaps UUIDs for objects (`paymentMethods: [{id, name}, ...]`). See `dto-conventions.md` for the full variant breakdown.

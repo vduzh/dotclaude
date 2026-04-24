@@ -112,9 +112,11 @@ Implements and maintains Spring Boot 3.5+ backend runtime code — layered archi
 | `exceptions.md` | Dedicated exceptions, `GlobalExceptionHandler`, `ErrorDto`, Exception-vs-Optional |
 | `pagination.md` | `PagedResult`/`PagedResponse`, `SortUtil`, `@ValidSort`, Specifications, Filter objects |
 | `patch.md` | `Patchable`, `@NullOrNotBlank`, `@NotEmptyPatch`, MapStruct `@BeanMapping` |
+| `idempotency.md` | `Idempotency-Key` once-only execution via DB-backed record (opt-in) |
 | `lookup.md` | Large/small lookup endpoints, `X-Total-Count` header |
 | `security-oauth2.md` | Dual `SecurityFilterChain`, OAuth2 Resource Server (Keycloak), CORS |
-| `security-jjwt.md` | Dual `SecurityFilterChain`, self-issued JWTs (JJWT), Bucket4j, login-attempt |
+| `security-jjwt.md` | Self-issued JWTs, per-IP + per-user rate limits, login-attempt protection, anti-enumeration, CORS |
+| `refresh-tokens.md` | Refresh-token flow (opt-in) — rotation, family revocation, scope-limited cookie |
 | `logging.md` | `key=value` format, verb tenses, PII via `@ToString` |
 | `swagger.md` | `@Operation` summary/description rules, `@ApiResponse` sparing use |
 | `migrations.md` | Liquibase formatted SQL, SQL Style Guide, rollback, test data contexts |

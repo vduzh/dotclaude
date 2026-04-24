@@ -111,25 +111,27 @@ public class GlobalExceptionHandler {
 
 For security-specific exceptions (`AccessDeniedException`, `AuthenticationException`, `RateLimitExceededException`, etc.), see `references/security-oauth2.md` or `references/security-jjwt.md`.
 
+For `GoneException` (410, `GONE`), see `references/idempotency.md`.
+
 ## Exception vs Optional
 
 | Scenario | Return type | Example |
 |----------|-------------|---------|
 | REST `GET /resource/{id}` | Throw exception | `findById(id)` |
-| REST collection search | Empty list `[]` | `searchProfiles(params)` |
+| REST collection search | Empty list `[]` | `searchCustomers(params)` |
 | Internal service logic | `Optional<T>` | `findByEmail(email)` |
 | FK validation | `existsById()` | `repository.existsById(id)` |
 
 ```java
 // Throw — for REST endpoints expecting a specific resource
-public ProfileDto findById(UUID id) {
+public CustomerDto findById(UUID id) {
     return repository.findById(id)
         .map(mapper::toDto)
-        .orElseThrow(() -> new ResourceNotFoundException("Profile not found: " + id));
+        .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + id));
 }
 
 // Optional — for internal logic where absence is valid
-public Optional<UserDto> findByEmail(String email) {
+public Optional<CustomerDto> findByEmail(String email) {
     return repository.findByEmail(email).map(mapper::toDto);
 }
 ```

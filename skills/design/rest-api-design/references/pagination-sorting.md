@@ -16,12 +16,12 @@ Values outside the documented ranges (e.g. `limit=0`, `limit=200`, `page=0`) →
 
 ## JSON:API sort format
 
-- Ascending: `sort=name`
+- Ascending: `sort=lastName`
 - Descending: `sort=-createdAt` (prefix with `-`)
-- Multiple fields: `sort=name,-createdAt` (comma-separated)
+- Multiple fields: `sort=lastName,-createdAt` (comma-separated)
 
 ```
-GET /api/v1/customers?page=2&limit=50&search=john&sort=name,-createdAt
+GET /api/v1/customers?page=2&limit=50&search=john&sort=lastName,-createdAt
 ```
 
 ## Paged response envelope
@@ -29,7 +29,7 @@ GET /api/v1/customers?page=2&limit=50&search=john&sort=name,-createdAt
 ```json
 {
   "data": [
-    { "id": "550e8400-...", "firstName": "John", "status": "ACTIVE" }
+    { "id": "550e8400-...", "firstName": "John", "lastName": "Doe", "status": "ACTIVE" }
   ],
   "pagination": {
     "page": 1,
@@ -40,7 +40,7 @@ GET /api/v1/customers?page=2&limit=50&search=john&sort=name,-createdAt
 }
 ```
 
-**Not applicable** (return `T[]` directly): lookup endpoints, single resource `GET /{id}`, mutations, reference/dictionary endpoints.
+**Not applicable** (return a plain JSON array or a single object, no pagination wrapper): lookup endpoints, single resource `GET /{id}`, mutations, reference/dictionary endpoints.
 
 ## Empty results
 

@@ -6,18 +6,16 @@ Expose `X-Total-Count` in CORS `exposedHeaders` — see `references/security-jjw
 
 ## Large lookup (server-side search)
 
-Use when the dataset can be large (athletes, users, clients). Paginate internally, return `List<T>` + `X-Total-Count` header.
+Use when the dataset can be large (customers, countries). Paginate internally, return `List<T>` + `X-Total-Count` header.
 
 ### Controller
 
 ```java
-@GetMapping(produces = "application/vnd.api.athlete.lookup+json")
-@Operation(summary = "Get athletes as lookup")
-public ResponseEntity<List<AthleteLookupDto>> getAthletesAsLookup(
-        @AuthenticationPrincipal UserDetails userDetails,
-        @Valid @ModelAttribute AthleteLookupSearchParams params) {
-    UUID userId = getCurrentUserId(userDetails);
-    PagedResult<AthleteLookupDto> result = athleteService.searchAthletesAsLookup(userId, params);
+@GetMapping(produces = "application/vnd.api.customer.lookup+json")
+@Operation(summary = "Get customers as lookup")
+public ResponseEntity<List<CustomerLookupDto>> getCustomersAsLookup(
+        @Valid @ModelAttribute CustomerLookupSearchParams params) {
+    PagedResult<CustomerLookupDto> result = customerService.searchCustomersAsLookup(params);
     return ResponseEntity.ok()
         .header("X-Total-Count", String.valueOf(result.total()))
         .body(result.content());
@@ -28,7 +26,7 @@ public ResponseEntity<List<AthleteLookupDto>> getAthletesAsLookup(
 
 ```java
 @Data
-public class AthleteLookupSearchParams {
+public class CustomerLookupSearchParams {
     private String search;
 
     @Min(1) @Max(100)
@@ -40,27 +38,29 @@ public class AthleteLookupSearchParams {
 
 ```java
 @Transactional(readOnly = true)
-public PagedResult<AthleteLookupDto> searchAthletesAsLookup(UUID userId, AthleteLookupSearchParams params) {
+public PagedResult<CustomerLookupDto> searchCustomersAsLookup(CustomerLookupSearchParams params) {
     Pageable pageable = PageRequest.of(0, params.getLimit(), Sort.by("lastName", "firstName"));
-    Specification<Athlete> spec = AthleteSpecification.withFilters(params.getSearch(), userId);
-    Page<Athlete> page = repository.findAll(spec, pageable);
+    Specification<Customer> spec = CustomerSpecification.withFilters(params.getSearch(), null, null);
+    Page<Customer> page = repository.findAll(spec, pageable);
     return PagedResult.of(page.map(mapper::toLookupDto));
 }
 ```
 
 `PagedResult` carries `total` for the `X-Total-Count` header even though the response body is `List<T>`.
 
+The same pattern applies to `Country` (~200 entries) — swap the entity, DTO, and the `.country.lookup+json` media type; sort by `name`.
+
 ## Small lookup (load all)
 
-Use when the dataset is small and static (currencies, payment method types, subscription plans — typically <100 items).
+Use when the dataset is small and static (payment methods, subscription plans — typically under 50 items).
 
 ### Controller
 
 ```java
-@GetMapping(produces = "application/vnd.api.currency.lookup+json")
-@Operation(summary = "Get currencies as lookup")
-public List<CurrencyLookupDto> getCurrenciesAsLookup() {
-    return currencyService.getAllAsLookup();
+@GetMapping(produces = "application/vnd.api.payment-method.lookup+json")
+@Operation(summary = "Get payment methods as lookup")
+public List<PaymentMethodLookupDto> getPaymentMethodsAsLookup() {
+    return paymentMethodService.getAllAsLookup();
 }
 ```
 
@@ -68,9 +68,11 @@ public List<CurrencyLookupDto> getCurrenciesAsLookup() {
 
 ```java
 @Transactional(readOnly = true)
-public List<CurrencyLookupDto> getAllAsLookup() {
+public List<PaymentMethodLookupDto> getAllAsLookup() {
     return repository.findAll(Sort.by("name")).stream()
         .map(mapper::toLookupDto)
         .toList();
 }
 ```
+
+No `X-Total-Count`, no pagination — the client holds the full list and filters in memory.

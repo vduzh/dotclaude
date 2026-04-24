@@ -124,19 +124,21 @@ public class CustomerSearchParams {
     @Min(1) @Max(100)
     private Integer limit = 20;
 
-    @ValidSort(allowed = {"name", "email", "createdAt"})
+    @ValidSort(allowed = {"firstName", "lastName", "email", "createdAt"})
     private String sort = "-createdAt";
 
     private String search;
     private UUID countryId;
+    private AccountStatus status;
 }
 ```
 
 ## Controller / Service chain
 
 ```java
-// Controller
-@GetMapping(produces = {"application/json", "application/vnd.api.customer.list+json"})
+// Controller — paged list is the default representation of the collection,
+// no vendor media type needed (see rest-api-design content negotiation).
+@GetMapping
 public ResponseEntity<PagedResponse<CustomerListItemDto>> list(
         @Valid @ModelAttribute CustomerSearchParams params) {
     return ResponseEntity.ok(PagedResponse.of(customerService.search(params)));
@@ -150,7 +152,7 @@ public PagedResult<CustomerListItemDto> search(CustomerSearchParams params) {
     Pageable pageable = PageRequest.of(params.getPage() - 1, params.getLimit(), sort);
 
     Specification<Customer> spec = CustomerSpecification.withFilters(
-        params.getSearch(), params.getCountryId());
+        params.getSearch(), params.getCountryId(), params.getStatus());
     return PagedResult.of(repository.findAll(spec, pageable).map(mapper::toListItemDto));
 }
 ```
@@ -165,20 +167,11 @@ public PagedResult<CustomerListItemDto> search(CustomerSearchParams params) {
 public class CustomerSpecification {
 
     // 1-3 params: individual arguments
-    public static Specification<Customer> withFilters(String search, UUID countryId) {
+    public static Specification<Customer> withFilters(String search, UUID countryId, AccountStatus status) {
         return Specification.allOf(
             searchLike(search),
-            hasCountry(countryId)
-        );
-    }
-
-    // 4+ params: use Filter object
-    public static Specification<Customer> withFilters(CustomerFilter filter) {
-        return Specification.allOf(
-            searchLike(filter.getSearch()),
-            hasCountry(filter.getCountryId()),
-            hasStatus(filter.getStatus()),
-            hasType(filter.getType())
+            hasCountry(countryId),
+            hasStatus(status)
         );
     }
 
@@ -186,12 +179,25 @@ public class CustomerSpecification {
         if (search == null || search.isBlank()) return null;
         String pattern = "%" + search.toLowerCase() + "%";
         return (root, query, cb) -> cb.or(
-            cb.like(cb.lower(root.get("name")), pattern),
-            cb.like(cb.lower(root.get("email")), pattern)
+            cb.like(cb.lower(root.get("firstName")), pattern),
+            cb.like(cb.lower(root.get("lastName")),  pattern),
+            cb.like(cb.lower(root.get("email")),     pattern)
         );
+    }
+
+    private static Specification<Customer> hasCountry(UUID countryId) {
+        if (countryId == null) return null;
+        return (root, query, cb) -> cb.equal(root.get("country").get("id"), countryId);
+    }
+
+    private static Specification<Customer> hasStatus(AccountStatus status) {
+        if (status == null) return null;
+        return (root, query, cb) -> cb.equal(root.get("status"), status);
     }
 }
 ```
+
+For 4+ filters, collect them into a Filter object — see the Invoice example below.
 
 ## Filter class (4+ parameters)
 
@@ -201,9 +207,10 @@ Place in `repository/spec/` next to Specification:
 @Data
 @Builder
 public class InvoiceFilter {
-    @NonNull private UUID coachId;  // required
-    private UUID athleteId;          // optional
+    @NonNull private UUID customerId;   // required
     private InvoiceStatus status;
+    private LocalDate issuedFrom;
+    private LocalDate issuedTo;
     private String search;
 }
 ```

@@ -17,8 +17,8 @@ public interface Patchable {
 @Builder
 @ToString(onlyExplicitlyIncluded = true)
 @NotEmptyPatch
-@Schema(name = "ProfilePatch")
-public class ProfilePatchDto implements Patchable {
+@Schema(name = "CustomerPatch")
+public class CustomerPatchDto implements Patchable {
 
     @NullOrNotBlank @Size(max = 50)
     @Schema(description = "First name")
@@ -28,12 +28,28 @@ public class ProfilePatchDto implements Patchable {
     @Schema(description = "Last name")
     private String lastName;
 
+    @Email @Size(max = 255)
+    @Schema(description = "Email address")
+    private String email;
+
+    @Schema(description = "Account status")
+    private AccountStatus status;
+
+    @Schema(description = "Country ID")
+    private UUID countryId;
+
+    @Schema(description = "Payment method IDs")
+    private List<UUID> paymentMethods;
+
     @Override
     public boolean isEmpty() {
-        return firstName == null && lastName == null;
+        return firstName == null && lastName == null && email == null
+            && status == null && countryId == null && paymentMethods == null;
     }
 }
 ```
+
+Note: `email` cannot be cleared via PATCH — `null` means "don't touch" per the `rest-api-design` payload contract. Use PUT for that.
 
 ## Custom validators
 
@@ -87,46 +103,62 @@ Set `nullValuePropertyMappingStrategy = IGNORE` only on the patch method via `@B
 
 ```java
 @Mapper(componentModel = "spring")
-public interface ProfileMapper {
+public interface CustomerMapper {
 
     // PUT — all fields overwrite (including nulls)
-    void updateEntityFromDto(ProfileUpdateDto dto, @MappingTarget ProfileEntity entity);
+    void updateEntityFromDto(CustomerUpdateDto dto, @MappingTarget CustomerEntity entity);
 
-    // PATCH — only non-null fields update
+    // PATCH — only non-null fields update; associations handled by the service
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "country", ignore = true)
+    @Mapping(target = "paymentMethods", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    void patchEntityFromDto(ProfilePatchDto dto, @MappingTarget ProfileEntity entity);
+    void patchEntityFromDto(CustomerPatchDto dto, @MappingTarget CustomerEntity entity);
 }
 ```
 
 ## Service
 
-Empty patches are rejected at validation layer (`@NotEmptyPatch` + `@Valid` → 400). Service skips DB write as a defensive layer:
+Empty patches are rejected at the validation layer (`@NotEmptyPatch` + `@Valid` → 400). The service still checks `isEmpty()` as a defensive layer, and resolves FK fields manually (the mapper ignores associations — see `references/dto.md`):
 
 ```java
 @Transactional
-public ProfileDto patch(UUID id, ProfilePatchDto dto) {
+public CustomerDto patch(UUID id, CustomerPatchDto dto) {
     if (dto.isEmpty()) {
         return findById(id);
     }
-    ProfileEntity entity = repository.findById(id)
-        .orElseThrow(() -> new ResourceNotFoundException("Profile not found: " + id));
+    CustomerEntity entity = repository.findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + id));
+
     mapper.patchEntityFromDto(dto, entity);
+
+    if (dto.getCountryId() != null) {
+        entity.setCountry(countryRepository.getReferenceById(dto.getCountryId()));
+    }
+    if (dto.getPaymentMethods() != null) {
+        entity.setPaymentMethods(dto.getPaymentMethods().stream()
+            .map(paymentMethodRepository::getReferenceById)
+            .collect(Collectors.toSet()));
+    }
+
     repository.save(entity);
     return mapper.toDto(entity);
 }
 ```
 
+- `if (dto.getCountryId() != null)` mirrors MapStruct's null-ignore: a PATCH that omits `countryId` leaves the existing country untouched.
+- `paymentMethods` is a full-collection replacement on PATCH — sending `[]` clears the customer's methods; omitting the field keeps them. This matches the general "null/absent = don't touch, value = replace" PATCH semantics.
+
 ## Controller
 
 ```java
 @PatchMapping("/{id}")
-@Operation(summary = "Patch profile",
+@Operation(summary = "Patch customer",
            description = "Partial update — at least one field required")
-public ProfileDto patch(@PathVariable UUID id,
-                        @Valid @RequestBody ProfilePatchDto dto) {
-    return profileService.patch(id, dto);
+public CustomerDto patch(@PathVariable UUID id,
+                         @Valid @RequestBody CustomerPatchDto dto) {
+    return customerService.patch(id, dto);
 }
 ```

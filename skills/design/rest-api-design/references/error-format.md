@@ -26,9 +26,9 @@ Standard error shape for all REST API error responses.
 | `BAD_REQUEST` | 400 | Invalid input (type mismatch, bad UUID, etc.) |
 | `NOT_FOUND` | 404 | Resource not found |
 | `CONFLICT` | 409 | Business conflict or DB constraint violation |
-| `PRECONDITION_FAILED` | 412 | `If-Match` ETag did not match current resource version |
+| `GONE` | 410 | Idempotency retry when the created resource no longer exists |
+| `NOT_ACCEPTABLE` | 406 | `Accept` header requests an unsupported representation |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Request `Content-Type` not supported |
-| `PRECONDITION_REQUIRED` | 428 | `If-Match` header missing when required |
 | `FORBIDDEN` | 403 | Access denied |
 | `UNAUTHORIZED` | 401 | Missing or invalid authentication |
 | `TOO_MANY_REQUESTS` | 429 | Rate limit exceeded |
@@ -119,9 +119,9 @@ Retry-After: 900
 | Account temporarily locked | 429 | `ACCOUNT_TEMPORARILY_LOCKED` |
 | Business conflict ("already exists") | 409 | `CONFLICT` |
 | DB constraint violation | 409 | `CONFLICT` |
-| ETag mismatch on concurrent update | 412 | `PRECONDITION_FAILED` |
+| Idempotency retry — resource no longer exists | 410 | `GONE` |
+| Unsupported request `Accept` header | 406 | `NOT_ACCEPTABLE` |
 | Unsupported request `Content-Type` | 415 | `UNSUPPORTED_MEDIA_TYPE` |
-| `If-Match` missing when required | 428 | `PRECONDITION_REQUIRED` |
 | Unexpected server error | 500 | `INTERNAL_ERROR` |
 
 Never expose stack traces or internal details. Never let generic programming errors map to 4xx — they become 500.

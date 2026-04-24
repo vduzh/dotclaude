@@ -18,11 +18,22 @@ Name DTOs as `{Entity}{Operation}` — noun first:
 | `XxxCreate` | POST body | All required fields for creation |
 | `XxxUpdate` | PUT body | All fields required (full replacement) |
 | `XxxPatch` | PATCH body | All fields optional, at least one required |
-| `Xxx` | Response (single) — GET `/{id}`, POST 201, PUT 200, PATCH 200 | All fields, no associations — default representation |
-| `XxxSummary` | Response (single, summary) | Reduced field set — used when endpoint offers `.summary+json` |
-| `XxxFull` | Response (single, full) | Default + expanded associations — used when endpoint offers `.full+json` |
+| `Xxx` | Response (single), default on `application/json` | All fields; associations as identifiers (scalar FK: `xxxId`; collection FK: array of UUIDs) |
+| `XxxSummary` | Response on `.summary+json` | Reduced field set — lightweight display |
+| `XxxFull` | Response on `.full+json` | Default + expanded associations |
 | `XxxListItem` | Response (list) | Subset of fields for table/list view |
-| `XxxLookup` | Response (dropdown) | Minimal fields (id + display name) |
+| `XxxLookup` | Response (dropdown) | Minimal: `id` + display name |
+
+## Association expansion rules (`.full+json`)
+
+Scalar FK and collection FK follow different naming rules in the expanded variant:
+
+| Relation | Default (`application/json`) | Expanded (`.full+json`) |
+|---|---|---|
+| Scalar FK | `countryId: "uuid"` | `country: {id, name, ...}` — `Id`-suffix drops |
+| Collection FK | `paymentMethods: ["uuid", "uuid"]` | `paymentMethods: [{id, name}, ...]` — same field name |
+
+The scalar `xxxId` / `xxx` split makes the type visible from the field name (UUID-string vs object). For collections, the plural already signals multiplicity, so the field name stays — clients discriminate value shape by `Accept`.
 
 ## JSON examples
 
@@ -34,9 +45,13 @@ Name DTOs as `{Entity}{Operation}` — noun first:
   "firstName": "John",
   "lastName": "Doe",
   "email": "john@example.com",
-  "phone": "+1234567890"
+  "status": "ACTIVE",
+  "countryId": "660e8400-e29b-41d4-a716-446655440010",
+  "paymentMethods": ["770e8400-e29b-41d4-a716-446655440020"]
 }
 ```
+
+`email` is nullable — omit the field or send `"email": null`; both mean "no email". `countryId` is required. `paymentMethods` may be an empty array.
 
 ### Update (PUT)
 
@@ -46,11 +61,16 @@ Name DTOs as `{Entity}{Operation}` — noun first:
   "firstName": "John",
   "lastName": "Smith",
   "email": "john.smith@example.com",
-  "phone": "+1234567890"
+  "status": "ACTIVE",
+  "countryId": "660e8400-e29b-41d4-a716-446655440010",
+  "paymentMethods": [
+    "770e8400-e29b-41d4-a716-446655440020",
+    "770e8400-e29b-41d4-a716-446655440021"
+  ]
 }
 ```
 
-All fields required — full replacement.
+All fields required — full replacement. To clear `email`, send `"email": null` (the only way — see `payload-conventions.md` null-vs-absent).
 
 ### Patch (PATCH)
 
@@ -59,7 +79,7 @@ All fields required — full replacement.
 { "lastName": "Smith" }
 ```
 
-Only provided fields updated.
+Only provided fields updated. `null` on PATCH means "don't touch" — it cannot clear `email`; use PUT for that.
 
 ### Single resource response (default)
 
@@ -69,8 +89,12 @@ Only provided fields updated.
   "firstName": "John",
   "lastName": "Doe",
   "email": "john@example.com",
-  "phone": "+1234567890",
   "status": "ACTIVE",
+  "countryId": "660e8400-e29b-41d4-a716-446655440010",
+  "paymentMethods": [
+    "770e8400-e29b-41d4-a716-446655440020",
+    "770e8400-e29b-41d4-a716-446655440021"
+  ],
   "createdAt": "2026-01-15T10:30:00Z",
   "updatedAt": "2026-03-02T14:05:00Z"
 }
@@ -78,7 +102,7 @@ Only provided fields updated.
 
 ### Summary response
 
-Served on `Accept: application/vnd.api.customer.summary+json`. Reduced field set — no audit timestamps, no associations:
+Served on `Accept: application/vnd.api.customer.summary+json`. Reduced — no associations, no audit timestamps:
 
 ```json
 {
@@ -92,7 +116,7 @@ Served on `Accept: application/vnd.api.customer.summary+json`. Reduced field set
 
 ### Full response
 
-Served on `Accept: application/vnd.api.customer.full+json`. Default fields plus expanded associations inlined as nested objects:
+Served on `Accept: application/vnd.api.customer.full+json`. Scalar FK expanded as a named object (`country`, `Id`-suffix dropped); collection FK expanded as an array of objects (`paymentMethods`, same field name as default):
 
 ```json
 {
@@ -100,23 +124,17 @@ Served on `Accept: application/vnd.api.customer.full+json`. Default fields plus 
   "firstName": "John",
   "lastName": "Doe",
   "email": "john@example.com",
-  "phone": "+1234567890",
   "status": "ACTIVE",
-  "createdAt": "2026-01-15T10:30:00Z",
-  "updatedAt": "2026-03-02T14:05:00Z",
-  "addresses": [
-    {
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "street": "123 Main St",
-      "city": "New York",
-      "country": "US"
-    }
+  "country": {
+    "id": "660e8400-e29b-41d4-a716-446655440010",
+    "name": "United States"
+  },
+  "paymentMethods": [
+    { "id": "770e8400-e29b-41d4-a716-446655440020", "name": "Credit Card" },
+    { "id": "770e8400-e29b-41d4-a716-446655440021", "name": "Bank Transfer" }
   ],
-  "preferredPaymentMethod": {
-    "id": "bb112233-4455-6677-8899-aabbccddeeff",
-    "type": "CREDIT_CARD",
-    "last4": "4242"
-  }
+  "createdAt": "2026-01-15T10:30:00Z",
+  "updatedAt": "2026-03-02T14:05:00Z"
 }
 ```
 
@@ -130,15 +148,10 @@ Subset of fields for table display:
 
 ### Lookup response
 
-Minimal — for dropdown/select:
+Minimal — for dropdown/select. Display `name` is derived (for `Customer`, `firstName + " " + lastName`):
 
 ```json
 { "id": "550e8400-...", "name": "John Doe" }
 ```
 
-Lookup items MAY include an entity-specific identifier field when it carries display meaning (e.g. `code` for currencies, `iso` for countries):
-
-```json
-{ "id": "550e8400-...", "code": "USD", "name": "US Dollar" }
-```
-
+Dictionary lookups (`Country`, `PaymentMethod`) use the same `{id, name}` shape — see `lookup-endpoints.md`.

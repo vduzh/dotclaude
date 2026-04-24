@@ -12,6 +12,10 @@ description: >
 
 Scope: Spring Boot 3.5+ application runtime code and database migrations.
 
+This skill implements the REST API contract defined in the `rest-api-design` skill. Refer to it for URI conventions, HTTP status codes, content negotiation, error response shape, pagination semantics, and authentication/rate-limiting requirements. This skill defines only the Spring Boot runtime mapping of that contract.
+
+**Out of scope:** `ETag`/`If-Match` optimistic concurrency — introduce when multi-editor conflicts become a concrete business requirement (see the `rest-api-design` scope).
+
 ## Prerequisites
 
 The Gradle build must include: Lombok, MapStruct (with `lombok-mapstruct-binding`), Spring Data JPA, Liquibase, and a JDBC driver. If any are missing, configure them via the `spring-boot-gradle-setup` skill before proceeding.
@@ -24,6 +28,23 @@ The Gradle build must include: Lombok, MapStruct (with `lombok-mapstruct-binding
 4. `Page<T>` never leaves service impl — services return `PagedResult<T>`.
 5. Throw dedicated exceptions (`ResourceNotFoundException`, `ConflictException`, `BadRequestException`), not `IllegalStateException`/`IllegalArgumentException`.
 6. Schema managed by Liquibase; set `spring.jpa.hibernate.ddl-auto: validate`.
+7. All endpoints are mounted under `/api/v1/...` — URI versioning per the contract.
+8. Controllers expose the **default representation** on `application/json` — no vendor media type for the default. Declare `produces = "application/vnd.api.{entity}.{view}+json"` only for alternative variants (`lookup`, `summary`, `full`).
+9. Tokens are delivered in `HttpOnly` cookies, never in the response body or `Authorization` header.
+
+## HTTP contract mapping
+
+Controllers must map paths, verbs, and media types per `rest-api-design`:
+
+| Concern | Rule | Where implemented |
+|---------|------|-------------------|
+| Base path | `/api/v1/` | `@RequestMapping` on every `@RestController` |
+| Collection name | plural noun, `kebab-case` | `@RequestMapping("/payment-methods")` — never `/paymentMethods`, never `/paymentMethod` |
+| No verbs in URI | HTTP method carries the action | `POST /customers`, not `/customers/create` |
+| Lookup by alt id | `/{resource}/by-{field}/{value}` | `@GetMapping("/customers/by-email/{email}")` |
+| Alt identifier with reserved chars | query parameter | `@GetMapping("/customers") + @RequestParam email` |
+
+These URI rules are enforced in controllers only; services operate on IDs and DTOs.
 
 ## Layer responsibilities
 
@@ -78,9 +99,9 @@ Services only accept DTOs from the `dto` package. Each entry point (controller, 
 ```java
 // Controller — adapts HTTP to service DTOs
 @PostMapping
-public ProfileDto create(@Valid @RequestBody ProfileCreateDto dto) {
+public CustomerDto create(@Valid @RequestBody CustomerCreateDto dto) {
     UUID userId = getCurrentUserId(authentication);
-    return profileService.create(userId, dto);
+    return customerService.create(userId, dto);
 }
 
 // Kafka consumer — adapts message to service DTOs
@@ -97,7 +118,7 @@ Services receive `userId` as a method parameter, never extract it from `Security
 
 ```java
 // ✅ Good — service is infrastructure-agnostic
-public ProfileDto create(UUID userId, ProfileCreateDto dto) { ... }
+public CustomerDto create(UUID userId, CustomerCreateDto dto) { ... }
 ```
 
 Authentication is resolved at the entry point (controller via `Authentication`, consumer via message payload).
@@ -106,17 +127,26 @@ Authentication is resolved at the entry point (controller via `Authentication`, 
 
 ```java
 @Entity
-@Table(name = "profiles")
+@Table(name = "customers")
 @Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProfileEntity {
+public class CustomerEntity {
     @Id
     private UUID id;
 
     @Column(nullable = false)
     private String firstName;
+
+    @Column(nullable = false)
+    private String lastName;
+
+    private String email;                    // nullable
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AccountStatus status;
 
     @CreatedDate
     @Column(updatable = false)
@@ -126,6 +156,8 @@ public class ProfileEntity {
     private Instant updatedAt;
 }
 ```
+
+Associations (`country`, `paymentMethods`) are omitted here for clarity — see `references/jpa.md` for `@ManyToOne`/`@ManyToMany` mappings on this entity.
 
 - Use `@Getter @Setter`, never `@Data` — avoids `equals`/`hashCode` issues with lazy loading
 - Use `UUID` for IDs
@@ -139,9 +171,9 @@ public class ProfileEntity {
 
 ```java
 // Own entity — service owns the ID
-public ProfileDto create(UUID userId, ProfileCreateDto dto) {
+public CustomerDto create(UUID userId, CustomerCreateDto dto) {
     UUID id = UUID.randomUUID();
-    ProfileEntity entity = mapper.toEntity(dto);
+    CustomerEntity entity = mapper.toEntity(dto);
     entity.setId(id);
     repository.save(entity);
     return mapper.toDto(entity);
@@ -158,14 +190,14 @@ All enums in separate files in `model/enums/`. Never nested inside entities.
 @Service
 @Transactional                          // default for all methods
 @RequiredArgsConstructor
-public class ProfileServiceImpl implements ProfileService {
+public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional(readOnly = true)     // override for reads
-    public ProfileDto findById(UUID id) { ... }
+    public CustomerDto findById(UUID id) { ... }
 
     @Override
-    public ProfileDto create(UUID userId, ProfileCreateDto dto) { ... }
+    public CustomerDto create(UUID userId, CustomerCreateDto dto) { ... }
 }
 ```
 
@@ -174,10 +206,10 @@ public class ProfileServiceImpl implements ProfileService {
 DELETE must be idempotent — return 204 whether the resource exists or not:
 
 ```java
-public void deleteProfile(UUID id) {
-    repository.findById(id).ifPresent(entity -> {
-        repository.delete(entity);
-        log.info("Deleted profile: id={}", id);
+public void deleteCustomer(UUID id) {
+    customerRepository.findById(id).ifPresent(entity -> {
+        customerRepository.delete(entity);
+        log.info("Deleted customer: id={}", id);
     });
 }
 ```
@@ -185,14 +217,13 @@ public void deleteProfile(UUID id) {
 With business rules — checks only performed if resource is found:
 
 ```java
-public void deletePaymentMethod(UUID coachId, UUID paymentMethodId) {
-    paymentMethodRepository.findByIdAndCoachId(paymentMethodId, coachId)
-        .ifPresent(pm -> {
-            if (subscriptionRepository.existsByPaymentMethodId(paymentMethodId)) {
-                throw new ConflictException("Cannot delete: assigned to subscriptions");
-            }
-            paymentMethodRepository.delete(pm);
-        });
+public void deleteCustomer(UUID id) {
+    customerRepository.findById(id).ifPresent(customer -> {
+        if (customer.getStatus() != AccountStatus.INACTIVE) {
+            throw new ConflictException("Cannot delete: customer must be INACTIVE first");
+        }
+        customerRepository.delete(customer);
+    });
 }
 ```
 
@@ -215,12 +246,16 @@ Load the reference file for each area the current task touches:
   Load when implementing list endpoints with paging, sorting, or filtering.
 - `references/patch.md` — `Patchable`, `@NullOrNotBlank`, `@NotEmptyPatch`, MapStruct `@BeanMapping` for partial updates.
   Load when implementing PATCH endpoints.
+- `references/idempotency.md` — `Idempotency-Key` once-only execution via a DB-backed record (opt-in feature, local migration).
+  Load when implementing retry-safe POST.
 - `references/lookup.md` — Large vs small lookup, `X-Total-Count` header.
   Load when adding lookup endpoints for dropdowns or selects.
 - `references/security-oauth2.md` — Dual `SecurityFilterChain`, OAuth2 Resource Server (Keycloak/external IdP), CORS.
   Load when the service validates JWTs issued by an external IdP.
-- `references/security-jjwt.md` — Dual `SecurityFilterChain`, self-issued JWTs (JJWT), Bucket4j rate limiting, login-attempt protection, CORS.
+- `references/security-jjwt.md` — Dual `SecurityFilterChain`, self-issued JWTs (JJWT), account state gating, anti-enumeration, per-IP + per-user rate limiting with `X-RateLimit-*` headers, login-attempt protection (IP-email + email-global), email-trigger cooldown, persisted secret hashing, CORS.
   Load when the service issues and validates its own JWTs.
+- `references/refresh-tokens.md` — Refresh-token flow (opt-in): rotation, family revocation on reuse, scope-limited cookie, server-side revocation on logout, hashed storage.
+  Load when implementing short-lived access tokens + refresh.
 - `references/logging.md` — `key=value` format, verb tenses, PII via `@ToString`.
   Load when adding or reviewing log statements.
 - `references/swagger.md` — `@Operation` summary/description rules, `@ApiResponse` sparing use.

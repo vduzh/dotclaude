@@ -7,22 +7,22 @@
 All service logs use structured `key=value` parameters:
 
 ```java
-log.debug("Creating profile: userId={}, data={}", userId, dto);
-log.debug("Created profile: id={}, userId={}", profile.getId(), userId);
+log.debug("Creating customer: userId={}, data={}", userId, dto);
+log.debug("Created customer: id={}, userId={}", customer.getId(), userId);
 ```
 
 ## Verb tense
 
 | When | Tense | Example |
 |------|-------|---------|
-| Entry (before action) | Present continuous (`-ing`) | `"Creating profile: userId={}"` |
-| Result (after action) | Past tense | `"Created profile: id={}"` |
+| Entry (before action) | Present continuous (`-ing`) | `"Creating customer: userId={}"` |
+| Result (after action) | Past tense | `"Created customer: id={}"` |
 
 ```java
-public ProfileDto create(UUID userId, ProfileCreateDto dto) {
-    log.debug("Creating profile: userId={}, data={}", userId, dto);
+public CustomerDto create(UUID userId, CustomerCreateDto dto) {
+    log.debug("Creating customer: userId={}, data={}", userId, dto);
     // ... business logic ...
-    log.debug("Created profile: id={}, userId={}", entity.getId(), userId);
+    log.debug("Created customer: id={}, userId={}", entity.getId(), userId);
     return mapper.toDto(entity);
 }
 ```
@@ -45,14 +45,24 @@ Control what appears in logs via `@ToString(onlyExplicitlyIncluded = true)` on i
 ```java
 @Data
 @ToString(onlyExplicitlyIncluded = true)
-public class ProfileCreateDto {
+public class CustomerCreateDto {
     @ToString.Include
     private String firstName;    // appears in logs
 
-    private String email;        // excluded from logs
-    private String phone;        // excluded from logs
+    @ToString.Include
+    private String lastName;     // appears in logs
+
+    private String email;        // excluded from logs (PII)
+
+    @ToString.Include
+    private AccountStatus status;
+
+    @ToString.Include
+    private UUID countryId;
 }
 ```
+
+Identifiers (`status`, `countryId`, `paymentMethods`) are safe to log. Direct personal data (`email`, phone numbers if present, full addresses) stays out.
 
 ## SLF4J setup
 
@@ -62,7 +72,7 @@ Use Lombok's `@Slf4j` — no manual logger creation:
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ProfileServiceImpl implements ProfileService {
+public class CustomerServiceImpl implements CustomerService {
     // log.debug(), log.info(), log.warn(), log.error() available
 }
 ```
